@@ -135,12 +135,13 @@ function normalize(o) {
       address: '', naverUrl: '', placeId: '', region: '',
       status: 'review', floor: '', area: 0,
       deposit: 0, rent: 0, feeRate: 0, maintenance: 0, premium: 0,
-      termsNote: '', pnl: '', availableAt: '', memo: '', contractNote: '',
+      availableAt: '', memo: '',
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     },
     o
   );
-  delete item.owner;   // 담당 필드 폐지
+  // 폐지한 필드 — 옛 저장값도 버린다
+  ['owner', 'termsNote', 'pnl', 'contractNote'].forEach((k) => delete item[k]);
   // 제안완료·드랍·기타 폐지. 이미 저장된 값은 옮겨 받는다
   if (item.status === 'proposed') item.status = 'progress';
   if (!STATUS_MAP[item.status]) item.status = 'review';   // drop · etc · 미상 → 후보지
@@ -158,7 +159,7 @@ function filtered() {
     if (state.kindFilter && (it.kind || '') !== state.kindFilter) return false;
     if (state.availableFilter && (it.availableAt || '') !== state.availableFilter) return false;
     if (!q) return true;
-    return [it.name, it.address, it.region, it.memo, it.floor, it.termsNote, it.pnl, it.contractNote]
+    return [it.name, it.address, it.region, it.memo, it.floor, it.availableAt]
       .some((v) => String(v || '').toLowerCase().includes(q));
   });
 }
@@ -432,7 +433,7 @@ function setView(v) {
 
 /* ===== 입력 폼 ===== */
 const FORM_FIELDS = ['name', 'kind', 'channel', 'status', 'region', 'floor', 'address', 'naverUrl',
-  'area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium', 'termsNote', 'pnl', 'availableAt', 'memo', 'contractNote'];
+  'area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium', 'availableAt', 'memo'];
 const NUM_FIELDS = ['area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium'];
 
 function openForm(id) {
@@ -549,11 +550,8 @@ function openDetail(id) {
       ${cell('초기투자', `<b>${moneyWon(it.initial)}</b>`)}
       ${cell('평당 임차료', it.rentPerPyeong ? moneyWon(Math.round(it.rentPerPyeong)) : '-')}
       ${cell('계약 가능시기', esc(it.availableAt || '-'))}
-      ${cell('예상손익', esc(it.pnl || '-'))}
     </div>
-    ${it.termsNote ? `<div class="detail-note"><i data-lucide="info"></i>조건 비고 — ${esc(it.termsNote)}</div>` : ''}
     ${memoBlock('기타', it.memo)}
-    ${memoBlock('계약 완료', it.contractNote)}
     <div class="detail-foot-meta">등록 ${dateStr(it.createdAt)} · 최종 수정 ${dateStr(it.updatedAt)}</div>
     <div class="form-foot">
       <button class="btn danger" data-detail-del="${it.id}"><i data-lucide="trash-2"></i><span>삭제</span></button>

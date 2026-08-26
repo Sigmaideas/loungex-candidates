@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <!-- ?v= 는 캐시 버스팅. GitHub Pages 가 max-age=600 이라 파라미터를 안 바꾸면
        코드를 고쳐도 브라우저가 10분간 옛 파일을 계속 쓴다. app.js/style.css 수정 시 함께 올릴 것 -->
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=8" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -247,17 +247,7 @@
             <span class="field-hint money-hint"></span>
           </div>
 
-          <div class="field full">
-            <label for="f_termsNote">조건 비고</label>
-            <input id="f_termsNote" name="termsNote" placeholder="예) 보증금 협의중 · 임차료 입찰" autocomplete="off" />
-          </div>
-
           <div class="form-section-title">진행</div>
-
-          <div class="field">
-            <label for="f_pnl">예상손익</label>
-            <input id="f_pnl" name="pnl" placeholder="손익 시트 이름" autocomplete="off" />
-          </div>
 
           <div class="field">
             <label for="f_availableAt">계약 가능시기</label>
@@ -270,11 +260,6 @@
           <div class="field full">
             <label for="f_memo">기타</label>
             <textarea id="f_memo" name="memo" placeholder="현장 특이사항, 협의 내용, 다음 액션 등"></textarea>
-          </div>
-
-          <div class="field full">
-            <label for="f_contractNote">계약 완료</label>
-            <input id="f_contractNote" name="contractNote" placeholder="계약 결과 · 종결 사유" autocomplete="off" />
           </div>
         </div>
 
@@ -301,7 +286,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="config.js?v=7"></script>
-  <script src="app.js?v=7"></script>
+  <script src="config.js?v=8"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
