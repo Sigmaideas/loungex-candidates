@@ -13,12 +13,11 @@ const SEED_URL = 'data/candidates.json';
 /* 시트의 "결과" 열에 대응. key 는 저장값이라 바꾸면 기존 데이터가 깨진다. */
 const STATUSES = [
   { key: 'review',   label: '후보지',   cls: 'st-review',   color: '#4263eb' },
-  { key: 'progress', label: '진행중',   cls: 'st-progress', color: '#f08c00' },
+  { key: 'progress', label: '협의중',   cls: 'st-progress', color: '#f08c00' },
   { key: 'signed',   label: '계약완료', cls: 'st-signed',   color: '#2f9e44' },
 ];
 const STATUS_MAP = Object.fromEntries(STATUSES.map((s) => [s.key, s]));
 const ACTIVE_KEYS = ['progress'];
-const KINDS = ['직영', '가맹', '베이커리'];
 
 /* 매장 타입. 모든 후보지는 이 셋 중 하나다. */
 const TYPES = ['Type A', 'Type B', 'Type C'];
@@ -140,7 +139,7 @@ function load() {
 function normalize(o) {
   const item = Object.assign(
     {
-      id: uid(), name: '', kind: '', type: '', channel: '',
+      id: uid(), name: '', type: '', channel: '',
       address: '', naverUrl: '', placeId: '', region: '',
       status: 'review', floor: '', area: 0,
       deposit: 0, rent: 0, feeRate: 0, maintenance: 0, premium: 0,
@@ -150,7 +149,7 @@ function normalize(o) {
     o
   );
   // 폐지한 필드 — 옛 저장값도 버린다
-  ['owner', 'termsNote', 'pnl', 'contractNote'].forEach((k) => delete item[k]);
+  ['owner', 'kind', 'termsNote', 'pnl', 'contractNote'].forEach((k) => delete item[k]);
   if (!TYPES.includes(item.type)) item.type = typeByArea(item.area);
   // 제안완료·드랍·기타 폐지. 이미 저장된 값은 옮겨 받는다
   if (item.status === 'proposed') item.status = 'progress';
@@ -220,12 +219,12 @@ function renderKpis() {
   const items = state.items;
   const by = (k) => items.filter((i) => i.status === k).length;
   const pct = (n) => (items.length ? Math.round((n / items.length) * 100) : 0);
-  const kinds = KINDS.map((k) => `${k} ${items.filter((i) => i.kind === k).length}`).join(' · ');
+  const types = TYPES.map((t) => `${t.replace('Type ', '')} ${items.filter((i) => i.type === t).length}`).join(' · ');
 
   $('#kpiRow').innerHTML = [
-    kpiCard({ accent: true, icon: 'map-pin', label: '전체 후보지', value: items.length, unit: '곳', sub: kinds }),
+    kpiCard({ accent: true, icon: 'map-pin', label: '전체 후보지', value: items.length, unit: '곳', sub: `Type ${types}` }),
     kpiCard({ icon: 'search-check', label: '후보지', value: by('review'), unit: '곳', sub: `전체의 ${pct(by('review'))}%` }),
-    kpiCard({ icon: 'activity', label: '진행중', value: by('progress'), unit: '곳', sub: `전체의 ${pct(by('progress'))}%` }),
+    kpiCard({ icon: 'activity', label: '협의중', value: by('progress'), unit: '곳', sub: `전체의 ${pct(by('progress'))}%` }),
     kpiCard({ icon: 'circle-check', label: '계약완료', value: by('signed'), unit: '곳', sub: `파이프라인 ${by('progress') + by('signed')}곳` }),
   ].join('');
 }
@@ -251,12 +250,6 @@ function renderFilters() {
   fillSelect($('#regionFilter'), uniq('region'), state.regionFilter, '전체 지역');
   fillSelect($('#typeFilter'), TYPES.filter((t) => state.items.some((i) => i.type === t)), state.typeFilter, '전체 타입');
   $('#regionList').innerHTML = uniq('region').map((r) => `<option value="${esc(r)}"></option>`).join('');
-}
-
-function kindTag(kind) {
-  if (!kind) return '<span class="kind-tag none">-</span>';
-  const cls = { 직영: 'direct', 가맹: 'fc', 베이커리: 'bakery' }[kind] || 'none';
-  return `<span class="kind-tag ${cls}">${esc(kind)}</span>`;
 }
 
 function renderTable() {
@@ -290,7 +283,7 @@ function renderTable() {
     rows.length === state.items.length ? `${rows.length}곳` : `${rows.length}곳 / 전체 ${state.items.length}곳`;
 
   if (!rows.length) {
-    body.innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--text-dim);padding:36px 0">조건에 맞는 후보지가 없습니다</td></tr>`;
+    body.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--text-dim);padding:36px 0">조건에 맞는 후보지가 없습니다</td></tr>`;
     return;
   }
 
@@ -299,7 +292,6 @@ function renderTable() {
     const sub = [it.address, it.channel].filter(Boolean).join(' · ');
     return `
       <tr data-id="${it.id}">
-        <td>${kindTag(it.kind)}</td>
         <td><span class="type-tag">${esc(it.type)}</span></td>
         <td class="cell-name">
           <div class="cand-name" data-act="detail">${esc(it.name)}
@@ -334,10 +326,10 @@ function renderBoard() {
       ? list.map((it) => `
         <div class="board-card" draggable="true" data-id="${it.id}">
           <div class="board-card-name">${esc(it.name)}</div>
-          <div class="board-card-addr">${esc([it.type, it.region].filter(Boolean).join(' · ') || '-')}</div>
+          <div class="board-card-addr">${esc([it.region, it.availableAt].filter(Boolean).join(' · ') || '-')}</div>
           <div class="board-card-foot">
             <span class="board-card-cost">${esc(rentLabel(it))}</span>
-            ${it.kind ? kindTag(it.kind) : ''}
+            <span class="type-tag">${esc(it.type)}</span>
           </div>
         </div>`).join('')
       : '<div class="board-empty">비어 있음</div>';
@@ -441,7 +433,7 @@ function setView(v) {
 }
 
 /* ===== 입력 폼 ===== */
-const FORM_FIELDS = ['name', 'kind', 'type', 'channel', 'status', 'region', 'floor', 'address', 'naverUrl',
+const FORM_FIELDS = ['name', 'type', 'channel', 'status', 'region', 'floor', 'address', 'naverUrl',
   'area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium', 'availableAt', 'memo'];
 const NUM_FIELDS = ['area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium'];
 
@@ -541,7 +533,6 @@ function openDetail(id) {
   $('#detailBody').innerHTML = `
     <div class="detail-head">
       <h3 style="margin:0">${esc(it.name)}</h3>
-      ${kindTag(it.kind)}
       <span class="type-tag">${esc(it.type)}</span>
       <span class="tag ${st.cls}">${esc(st.label)}</span>
       <a class="btn ghost" style="margin-left:auto" href="${esc(mapUrl(it))}" target="_blank" rel="noopener">
