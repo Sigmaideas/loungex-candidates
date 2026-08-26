@@ -349,81 +349,125 @@ function renderBoard() {
 }
 
 /* =========================================================
-   후보지 맵 (Leaflet + OpenStreetMap)
+   후보지 맵 (카카오맵)
 
-   좌표는 data/candidates.json 에 미리 넣어 둔다(도구로 한 번 지오코딩).
-   좌표가 없는 후보지는 아예 안 찍는다 — 지역 중심에 대충 찍으면 실제로
-   거기 있는 것처럼 읽혀서 오히려 잘못된 정보가 된다. 대신 몇 곳이
-   빠졌는지 지도 아래에 적어 둔다.
+   좌표는 data/candidates.json 에 미리 넣어 둔다(카카오 로컬 API 로 한 번 지오코딩).
+   좌표가 없는 후보지는 아예 안 찍는다 — 지역 중심에 대충 찍으면 실제로 거기
+   있는 것처럼 읽혀서 오히려 잘못된 정보가 된다. 몇 곳이 빠졌는지만 아래에 적는다.
+
+   SDK 는 autoload=false 로 불러서 이 화면을 처음 열 때 한 번만 켠다.
+   앱키에 도메인이 등록돼 있어야 뜬다(카카오 개발자 콘솔).
    ========================================================= */
 
-const MAP_FALLBACK = [36.5, 127.9];   // 찍을 게 하나도 없을 때 — 남한 중심
-let mapObj = null, mapLayer = null;
+let mapObj = null, mapOverlays = [], mapPopup = null, kakaoReady = null;
+
+function loadKakao() {
+  if (kakaoReady) return kakaoReady;
+  kakaoReady = new Promise((resolve, reject) => {
+    if (!window.kakao || !window.kakao.maps) return reject(new Error('SDK 없음'));
+    kakao.maps.load(() => resolve(kakao));
+  });
+  return kakaoReady;
+}
 
 function pinOf(it) {
   return Number.isFinite(it.lat) && Number.isFinite(it.lng) ? [it.lat, it.lng] : null;
 }
 
-function renderMap() {
-  const items = filtered();
-  const hint = $('#mapHint');
-  const note = $('#mapNote');
+function mapFail(msg) {
+  $('#mapCanvas').innerHTML = `<div class="map-fail">${esc(msg)}</div>`;
+  $('#mapHint').textContent = '';
+  $('#mapLegend').innerHTML = '';
+  $('#mapNote').textContent = '';
+}
 
-  if (!window.L) {
-    $('#mapCanvas').innerHTML = '<div class="map-fail">지도를 불러오지 못했습니다. 네트워크를 확인해 주세요.</div>';
-    hint.textContent = ''; note.textContent = '';
+async function renderMap() {
+  let kakao;
+  try {
+    kakao = await loadKakao();
+  } catch (e) {
+    console.error(e);
+    mapFail('지도를 불러오지 못했습니다. 카카오 앱키에 이 도메인이 등록됐는지 확인해 주세요.');
     return;
   }
 
   if (!mapObj) {
-    mapObj = L.map('mapCanvas', { scrollWheelZoom: true, zoomControl: true }).setView(MAP_FALLBACK, 7);
-    // OSM 기본 타일 — 키가 필요 없다 (CARTO 는 2025 부터 키를 요구한다)
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(mapObj);
-    mapLayer = L.layerGroup().addTo(mapObj);
+    mapObj = new kakao.maps.Map($('#mapCanvas'), {
+      center: new kakao.maps.LatLng(37.5665, 126.978),
+      level: 8,
+    });
+    mapObj.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
+    // 빈 곳을 누르면 열려 있던 말풍선을 닫는다
+    kakao.maps.event.addListener(mapObj, 'click', closeMapPopup);
   }
-  mapLayer.clearLayers();
 
-  const pins = [];
-  let missing = 0;
+  mapOverlays.forEach((o) => o.setMap(null));
+  mapOverlays = [];
+  closeMapPopup();
+
+  const items = filtered();
+  const bounds = new kakao.maps.LatLngBounds();
+  let shown = 0, missing = 0;
+
   items.forEach((it) => {
     const ll = pinOf(it);
     if (!ll) { missing++; return; }
+    const pos = new kakao.maps.LatLng(ll[0], ll[1]);
     const st = STATUS_MAP[it.status] || {};
-    const marker = L.marker(ll, {
-      icon: L.divIcon({
-        className: 'map-pin-wrap',
-        html: `<span class="map-pin ${st.cls || ''}" title="${esc(it.name)}">${esc(it.type.replace('Type ', ''))}</span>`,
-        iconSize: [22, 22], iconAnchor: [11, 11],
-      }),
-    });
-    marker.bindPopup(`
-      <div class="map-pop">
-        <div class="map-pop-name">${esc(it.name)}</div>
-        <div class="map-pop-meta">${typeTag(it.type)}<span class="tag ${st.cls}">${esc(st.label)}</span></div>
-        <div class="map-pop-addr">${esc(it.address || it.region || '-')}</div>
-        <div class="map-pop-cost">${esc(rentLabel(it))}${num(it.area) ? ` · ${num(it.area)}평` : ''}</div>
-        <a class="map-pop-link" href="${esc(mapUrl(it))}" target="_blank" rel="noopener">네이버 지도에서 보기</a>
-      </div>`);
-    marker.on('dblclick', () => openDetail(it.id));
-    mapLayer.addLayer(marker);
-    pins.push(ll);
+
+    const el = document.createElement('span');
+    el.className = `map-pin ${st.cls || ''}`;
+    el.title = it.name;
+    el.textContent = it.type.replace('Type ', '');
+    el.addEventListener('click', (e) => { e.stopPropagation(); openMapPopup(it, pos); });
+    el.addEventListener('dblclick', (e) => { e.stopPropagation(); openDetail(it.id); });
+
+    const ov = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 0.5, xAnchor: 0.5 });
+    ov.setMap(mapObj);
+    mapOverlays.push(ov);
+    bounds.extend(pos);
+    shown++;
   });
 
-  if (pins.length) mapObj.fitBounds(L.latLngBounds(pins).pad(0.15), { maxZoom: 15 });
-  else mapObj.setView(MAP_FALLBACK, 7);
-  // 뷰가 hidden 이었다가 켜지면 크기를 다시 재야 타일이 채워진다
-  setTimeout(() => mapObj.invalidateSize(), 0);
+  // 숨겨져 있던 뷰라 크기부터 다시 재야 한다. 순서가 바뀌면 컨테이너를
+  // 작게 본 채로 배율을 잡아서 지도가 과하게 축소된다.
+  mapObj.relayout();
+  // 여백 인자를 주면 한 단계 더 축소돼서 그냥 딱 맞춘다
+  if (shown) mapObj.setBounds(bounds);
 
   $('#mapLegend').innerHTML = STATUSES.map((s) =>
     `<span class="map-legend-item"><span class="map-pin ${s.cls}"></span>${esc(s.label)}</span>`).join('');
-
-  hint.textContent = `${pins.length}곳 표시 · 핀 글자는 타입 · 더블클릭하면 상세`;
-  note.textContent = missing
-    ? `${missing}곳은 주소로 좌표를 찾지 못해 지도에서 뺐습니다. 도로명주소를 넣으면 표시됩니다.`
+  $('#mapHint').textContent = `${shown}곳 표시 · 핀 글자는 타입 · 더블클릭하면 상세`;
+  $('#mapNote').textContent = missing
+    ? `${missing}곳은 주소로 좌표를 찾지 못해 지도에서 뺐습니다. 주소를 채우면 표시됩니다.`
     : '';
+}
+
+function closeMapPopup() {
+  if (mapPopup) { mapPopup.setMap(null); mapPopup = null; }
+}
+
+function openMapPopup(it, pos) {
+  closeMapPopup();
+  const st = STATUS_MAP[it.status] || {};
+  const box = document.createElement('div');
+  box.className = 'map-pop';
+  box.innerHTML = `
+    <button class="map-pop-close" aria-label="닫기">&times;</button>
+    <div class="map-pop-name">${esc(it.name)}</div>
+    <div class="map-pop-meta">${typeTag(it.type)}<span class="tag ${st.cls}">${esc(st.label)}</span></div>
+    <div class="map-pop-addr">${esc(it.address || it.region || '-')}</div>
+    <div class="map-pop-cost">${esc(rentLabel(it))}${num(it.area) ? ` · ${num(it.area)}평` : ''}</div>
+    <div class="map-pop-links">
+      <a href="${esc(mapUrl(it))}" target="_blank" rel="noopener">네이버 지도</a>
+      <button type="button" data-detail>상세 보기</button>
+    </div>`;
+  box.addEventListener('click', (e) => e.stopPropagation());
+  box.querySelector('.map-pop-close').addEventListener('click', closeMapPopup);
+  box.querySelector('[data-detail]').addEventListener('click', () => { closeMapPopup(); openDetail(it.id); });
+
+  mapPopup = new kakao.maps.CustomOverlay({ position: pos, content: box, yAnchor: 1.35, xAnchor: 0.5 });
+  mapPopup.setMap(mapObj);
 }
 
 function renderStats() {

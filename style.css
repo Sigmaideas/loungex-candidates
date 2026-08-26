@@ -354,18 +354,16 @@ tbody tr:hover .row-actions { opacity: 1; }
 .tag.st-signed   { background: var(--positive-soft); color: var(--positive); }
 
 /* 매장 타입 — 면적에서 나온 값이라 A→C 순서가 있다.
-   임의의 세 색 대신 초록 농도 3단계로 크기 순서를 읽히게 한다.
-   계약완료 태그도 초록이라 그쪽이 쓰는 #ebfbee 는 피했고,
-   모양으로도 갈린다(타입은 각진 사각, 상태는 알약). */
+   회색 농도 3단계로 크기 순서만 읽히게 하고 색은 상태 태그에 양보한다. */
 .type-tag {
   display: inline-block; padding: 2px 8px; border-radius: 6px;
   background: var(--surface-2); color: var(--text-sub);
   font-size: 11px; font-weight: 700; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.type-tag.t-a { background: #d3f9d8; color: #237032; }   /* 대비 5.33:1 */
-.type-tag.t-b { background: #8ce99a; color: #1b5e24; }   /* 대비 5.33:1 */
-.type-tag.t-c { background: #40c057; color: #14471b; }   /* 대비 4.57:1 */
+.type-tag.t-a { background: #f1f3f5; color: #495057; }   /* 대비 7.35:1 */
+.type-tag.t-b { background: #dee2e6; color: #343a40; }   /* 대비 8.84:1 */
+.type-tag.t-c { background: #adb5bd; color: #212529; }   /* 대비 7.43:1 */
 
 td.strong { color: var(--text); font-weight: 700; }
 
@@ -497,7 +495,8 @@ td.strong { color: var(--text); font-weight: 700; }
 .form-foot-right { display: flex; gap: 8px; }
 
 /* ===== Detail ===== */
-.detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+/* 우측 끝의 지도 버튼이 모달 닫기(×) 밑으로 들어가지 않게 자리를 비워 둔다 */
+.detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; padding-right: 34px; }
 .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 .detail-cell { background: var(--surface); padding: 14px 16px; }
 .detail-cell .k { font-size: 11px; color: var(--text-dim); margin-bottom: 5px; }
@@ -587,7 +586,7 @@ td.strong { color: var(--text); font-weight: 700; }
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-2);
-  z-index: 0;   /* Leaflet 이 만드는 pane 이 모달 위로 못 올라오게 */
+  overflow: hidden;
 }
 .map-fail { padding: 60px 0; text-align: center; color: var(--text-dim); font-size: 13px; }
 .map-note { margin: 12px 0 0; font-size: 12px; color: var(--text-dim); line-height: 1.6; }
@@ -598,7 +597,6 @@ td.strong { color: var(--text); font-weight: 700; }
 .map-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 
 /* 핀 — 상태로 색을 주고, 글자는 타입(A/B/C) */
-.map-pin-wrap { background: none; border: 0; }
 .map-pin {
   display: flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 50%;
@@ -610,15 +608,40 @@ td.strong { color: var(--text); font-weight: 700; }
 .map-pin.st-review   { background: var(--accent); }
 .map-pin.st-progress { background: var(--warn); }
 .map-pin.st-signed   { background: var(--positive); }
-.map-pop { min-width: 180px; }
-.map-pop-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
+
+/* 핀을 누르면 뜨는 말풍선 (카카오 기본 인포윈도우 대신 직접 그린다) */
+.map-pop {
+  position: relative;
+  min-width: 210px; max-width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgba(31,35,41,0.16);
+  padding: 13px 15px;
+}
+.map-pop::after {
+  content: ''; position: absolute; left: 50%; bottom: -7px;
+  width: 12px; height: 12px; margin-left: -6px;
+  background: var(--surface);
+  border-right: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong);
+  transform: rotate(45deg);
+}
+.map-pop-close {
+  position: absolute; top: 6px; right: 8px;
+  background: none; border: 0; cursor: pointer;
+  font-size: 17px; line-height: 1; color: var(--text-dim);
+}
+.map-pop-close:hover { color: var(--text); }
+.map-pop-name { font-size: 13px; font-weight: 700; color: var(--text); margin: 0 16px 7px 0; }
 .map-pop-meta { display: flex; gap: 5px; margin-bottom: 7px; }
-.map-pop-addr { font-size: 11.5px; color: var(--text-dim); margin-bottom: 3px; }
+.map-pop-addr { font-size: 11.5px; color: var(--text-dim); margin-bottom: 3px; line-height: 1.5; }
 .map-pop-cost { font-size: 11.5px; color: var(--text-sub); font-variant-numeric: tabular-nums; }
-.map-pop-link { display: inline-block; margin-top: 8px; font-size: 11.5px; color: var(--accent); }
-.leaflet-popup-content { margin: 12px 14px; font-family: inherit; }
-.leaflet-popup-content-wrapper { border-radius: var(--radius-sm); }
-.leaflet-container { font-family: inherit; }
+.map-pop-links { display: flex; gap: 12px; margin-top: 9px; }
+.map-pop-links a, .map-pop-links button {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 11.5px; font-weight: 600; color: var(--accent);
+}
+.map-pop-links a:hover, .map-pop-links button:hover { text-decoration: underline; }
 
 /* ===== v2 추가 ===== */
 .unit-note {

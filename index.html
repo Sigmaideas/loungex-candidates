@@ -9,11 +9,12 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <!-- ?v= 는 캐시 버스팅. GitHub Pages 가 max-age=600 이라 파라미터를 안 바꾸면
        코드를 고쳐도 브라우저가 10분간 옛 파일을 계속 쓴다. app.js/style.css 수정 시 함께 올릴 것 -->
-  <link rel="stylesheet" href="style.css?v=19" />
+  <link rel="stylesheet" href="style.css?v=24" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- 카카오맵. autoload=false 라 kakao.maps.load() 로 직접 켠다.
+       services = 주소검색·키워드 장소검색 (좌표를 브라우저에서 찾을 때 쓴다) -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=763d0420e95550f8dfdc7deff0a46a56&libraries=services&autoload=false"></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -297,7 +298,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="config.js?v=19"></script>
-  <script src="app.js?v=19"></script>
+  <script src="config.js?v=24"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>
