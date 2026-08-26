@@ -207,6 +207,7 @@ function render() {
   renderFilters();
   renderTable();
   renderBoard();
+  if (state.view === 'contract') renderContract();
   if (state.view === 'map') renderMap();
   if (state.view === 'stats') renderStats();
   icons();
@@ -487,9 +488,67 @@ function openMapPopup(it, pos) {
   mapPopup.setMap(mapObj);
 }
 
+/* =========================================================
+   계약
+
+   상태가 '계약완료' 인 후보지만 모은다. 별도 데이터가 아니라 같은 목록을
+   상태로 걸러 보여주는 화면이라, 여기 뜨게 하려면 후보지의 상태를 바꾸면 된다.
+   ========================================================= */
+function renderContract() {
+  const rows = state.items.filter((i) => i.status === 'signed');
+  const sum = (k) => rows.reduce((t, i) => t + num(i[k]), 0);
+
+  $('#contractKpiRow').innerHTML = [
+    kpiCard({ accent: true, icon: 'file-text', label: '계약완료', value: rows.length, unit: '곳',
+              sub: rows.length ? `협의중 ${state.items.filter((i) => i.status === 'progress').length}곳` : '아직 없습니다' }),
+    kpiCard({ icon: 'piggy-bank', label: '보증금 합계', value: money(sum('deposit')), unit: '' }),
+    kpiCard({ icon: 'wallet', label: '월 임차료 합계', value: money(sum('rent')), unit: '', sub: '수수료 방식 미포함' }),
+    kpiCard({ icon: 'coins', label: '초기투자 합계', value: money(sum('initial')), unit: '', sub: '보증금 + 권리금' }),
+  ].join('');
+
+  const empty = $('#contractEmpty');
+  $('#contractCard').hidden = !rows.length;
+  empty.hidden = Boolean(rows.length);
+  if (!rows.length) {
+    empty.innerHTML = `
+      <div class="empty">
+        <div class="ei"><i data-lucide="file-text"></i></div>
+        <h3>계약완료된 후보지가 없습니다</h3>
+        <p>후보지의 <b>상태</b>를 <b>계약완료</b>로 바꾸면 여기에 모입니다.</p>
+        <div class="empty-actions">
+          <button class="btn ghost" id="contractGoList"><i data-lucide="list"></i><span>후보지 목록으로</span></button>
+        </div>
+      </div>`;
+    $('#contractGoList').onclick = () => setView('list');
+    $('#contractHint').textContent = '';
+    return;
+  }
+
+  $('#contractHint').textContent = `${rows.length}곳`;
+  $('#contractBody').innerHTML = sorted(rows).map((it) => `
+    <tr data-id="${it.id}">
+      <td>${typeTag(it.type)}</td>
+      <td class="cell-name">
+        <div class="cand-name" data-act="detail">${esc(it.name)}
+          <a class="map-link" href="${esc(mapUrl(it))}" target="_blank" rel="noopener" title="네이버 지도에서 보기" data-act="map"><i data-lucide="external-link"></i></a>
+        </div>
+        ${it.address ? `<div class="cand-addr">${esc(it.address)}</div>` : ''}
+      </td>
+      <td>${esc(it.region || '-')}</td>
+      <td>${esc(it.floor || '-')}</td>
+      <td class="num">${num(it.area) ? num(it.area).toLocaleString() + '평' : '-'}</td>
+      <td class="num">${money(it.deposit)}</td>
+      <td class="num">${esc(rentLabel(it))}</td>
+      <td class="num">${money(it.maintenance)}</td>
+      <td class="num">${money(it.premium)}</td>
+      <td class="num strong">${money(it.initial)}</td>
+      <td>${esc(it.availableAt || '-')}</td>
+    </tr>`).join('');
+}
+
 function renderStats() {
   const items = state.items;
-  const alive = items;
+  const alive = items;   // 예전엔 드랍을 뺐는데 그 상태가 없어져서 전부 쓴다
   const areas = alive.filter((i) => num(i.area) > 0);
   const avgArea = areas.length ? Math.round(areas.reduce((s, i) => s + num(i.area), 0) / areas.length) : 0;
   const perP = alive.filter((i) => i.rentPerPyeong > 0);
@@ -498,9 +557,9 @@ function renderStats() {
   const totalRent = alive.reduce((s, i) => s + num(i.rent), 0);
 
   $('#statsKpiRow').innerHTML = [
-    kpiCard({ accent: true, icon: 'landmark', label: '지역', value: uniq('region').length, unit: '개', sub: `드랍 제외 ${alive.length}곳` }),
+    kpiCard({ accent: true, icon: 'landmark', label: '지역', value: uniq('region').length, unit: '개', sub: `후보지 ${alive.length}곳` }),
     kpiCard({ icon: 'ruler', label: '평균 전용면적', value: avgArea, unit: '평', sub: avgPer ? `평당 임차료 ${moneyWon(avgPer)}` : '면적 미입력' }),
-    kpiCard({ icon: 'piggy-bank', label: '보증금 합계', value: money(totalDeposit), unit: '', sub: '드랍 제외 · 고정 임차료 기준' }),
+    kpiCard({ icon: 'piggy-bank', label: '보증금 합계', value: money(totalDeposit), unit: '', sub: '고정 임차료 기준' }),
     kpiCard({ icon: 'wallet', label: '월 임차료 합계', value: money(totalRent), unit: '', sub: '수수료 방식 미포함' }),
   ].join('');
 
@@ -565,14 +624,15 @@ function renderStats() {
 }
 
 /* ===== 뷰 전환 ===== */
-const VIEW_TITLE = { list: '후보지 목록', board: '진행 현황', map: '후보지 맵', stats: '분석' };
+const VIEW_TITLE = { list: '후보지 목록', board: '진행 현황', map: '후보지 맵', stats: '분석', contract: '계약' };
 function setView(v) {
   state.view = v;
   $$('.nav-item[data-view]').forEach((el) => el.classList.toggle('active', el.dataset.view === v));
-  ['list', 'board', 'map', 'stats'].forEach((k) => { $(`#${k}View`).hidden = k !== v; });
+  ['list', 'board', 'map', 'stats', 'contract'].forEach((k) => { $(`#${k}View`).hidden = k !== v; });
   $('#pageTitle').textContent = VIEW_TITLE[v];
   if (v === 'map') renderMap();
   if (v === 'stats') renderStats();
+  if (v === 'contract') renderContract();
   icons();
 }
 
@@ -828,6 +888,12 @@ async function init() {
   });
 
   // 행 액션
+  $('#contractBody').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr || e.target.closest('[data-act="map"]')) return;
+    openDetail(tr.dataset.id);
+  });
+
   $('#tableBody').addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
