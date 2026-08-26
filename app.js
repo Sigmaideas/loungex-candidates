@@ -165,16 +165,19 @@ function normalize(o) {
   return item;
 }
 
-function filtered() {
+/* 타입 필터를 뺀 나머지 조건. filtered() 와 지도 칩 개수가 같은 규칙을 쓰게 묶어 둔다. */
+function matchesExceptType(it) {
+  if (state.statusFilter && it.status !== state.statusFilter) return false;
+  if (state.regionFilter && (it.region || '') !== state.regionFilter) return false;
   const q = state.search.trim().toLowerCase();
-  return state.items.filter((it) => {
-    if (state.statusFilter && it.status !== state.statusFilter) return false;
-    if (state.regionFilter && (it.region || '') !== state.regionFilter) return false;
-    if (state.typeFilter && it.type !== state.typeFilter) return false;
-    if (!q) return true;
-    return [it.name, it.address, it.region, it.memo, it.floor, it.availableAt, it.type]
-      .some((v) => String(v || '').toLowerCase().includes(q));
-  });
+  if (!q) return true;
+  return [it.name, it.address, it.region, it.memo, it.floor, it.availableAt, it.type]
+    .some((v) => String(v || '').toLowerCase().includes(q));
+}
+
+function filtered() {
+  return state.items.filter((it) =>
+    (!state.typeFilter || it.type === state.typeFilter) && matchesExceptType(it));
 }
 
 function sorted(list) {
@@ -435,12 +438,26 @@ async function renderMap() {
   // 여백 인자를 주면 한 단계 더 축소돼서 그냥 딱 맞춘다
   if (shown) mapObj.setBounds(bounds);
 
+  renderMapTypeChips();
   $('#mapLegend').innerHTML = STATUSES.map((s) =>
     `<span class="map-legend-item"><span class="map-pin ${s.cls}"></span>${esc(s.label)}</span>`).join('');
   $('#mapHint').textContent = `${shown}곳 표시 · 핀 글자는 타입 · 더블클릭하면 상세`;
   $('#mapNote').textContent = missing
     ? `${missing}곳은 주소로 좌표를 찾지 못해 지도에서 뺐습니다. 주소를 채우면 표시됩니다.`
     : '';
+}
+
+/* 타입 칩. 개수는 "지도에 올릴 수 있는" 곳만 센다 — 칩에 5 라고 떠 있는데
+   핀이 3개면 그게 더 헷갈린다. 타입 외 필터(검색·지역)는 그대로 걸린 채로 센다. */
+function renderMapTypeChips() {
+  const base = state.items.filter((it) => pinOf(it) && matchesExceptType(it));
+  const n = (t) => base.filter((i) => i.type === t).length;
+  const chip = (key, label, count) => `
+    <button class="chip${state.typeFilter === key ? ' active' : ''}" data-type="${esc(key)}">
+      ${esc(label)}<span class="chip-count">${count}</span>
+    </button>`;
+  $('#mapTypeChips').innerHTML =
+    chip('', '전체', base.length) + TYPES.map((t) => chip(t, t, n(t))).join('');
 }
 
 function closeMapPopup() {
@@ -778,6 +795,13 @@ async function init() {
   });
   $('#addBtn').addEventListener('click', () => openForm());
   $('#saveBtn').addEventListener('click', () => saveToServer(true));
+  $('#mapTypeChips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    state.typeFilter = chip.dataset.type;
+    $('#typeFilter').value = state.typeFilter;   // 목록의 드롭다운과 맞춰 둔다
+    renderTable(); renderMap(); icons();
+  });
 
   // 필터
   $('#searchInput').addEventListener('input', (e) => { state.search = e.target.value; renderTable(); if (state.view === 'map') renderMap(); icons(); });
