@@ -1,0 +1,12 @@
+name = "loungex-candidates-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+# 후보지 공유 데이터 저장소
+# id 는 `npx wrangler kv namespace create CANDIDATES` 출력값으로 채운다
+[[kv_namespaces]]
+binding = "DATA"
+id = "%%KV_NAMESPACE_ID%%"
+
+# TEAM_KEY 는 secret 으로 등록 (wrangler secret put TEAM_KEY)
