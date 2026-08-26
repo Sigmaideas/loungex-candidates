@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <!-- ?v= 는 캐시 버스팅. GitHub Pages 가 max-age=600 이라 파라미터를 안 바꾸면
        코드를 고쳐도 브라우저가 10분간 옛 파일을 계속 쓴다. app.js/style.css 수정 시 함께 올릴 것 -->
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -69,12 +69,12 @@
           <div class="filter-bar">
             <div class="search-box">
               <i data-lucide="search"></i>
-              <input type="text" id="searchInput" placeholder="후보지명 · 주소 · 담당자 · 메모 검색" />
+              <input type="text" id="searchInput" placeholder="후보지명 · 주소 · 메모 검색" />
             </div>
             <div class="chips" id="statusChips"></div>
             <select class="select" id="regionFilter"><option value="">전체 지역</option></select>
-            <select class="select" id="ownerFilter"><option value="">전체 담당자</option></select>
             <select class="select" id="kindFilter"><option value="">전체 구분</option></select>
+            <select class="select" id="availableFilter"><option value="">전체 가능시기</option></select>
           </div>
         </section>
 
@@ -90,14 +90,13 @@
                   <th data-sort="kind">구분</th>
                   <th data-sort="name">후보지</th>
                   <th data-sort="region">지역</th>
-                  <th data-sort="owner">담당</th>
                   <th data-sort="floor">층</th>
                   <th data-sort="area" class="num">면적</th>
                   <th data-sort="deposit" class="num">보증금</th>
                   <th data-sort="rent" class="num">임차료</th>
                   <th data-sort="premium" class="num">권리금</th>
                   <th data-sort="initial" class="num">초기투자</th>
-                  <th data-sort="status">결과</th>
+                  <th data-sort="status">상태</th>
                   <th data-sort="availableAt">가능시기</th>
                   <th class="no-sort"></th>
                 </tr>
@@ -114,8 +113,8 @@
       <div class="view" id="boardView" hidden>
         <section class="card">
           <div class="card-head">
-            <h2><i data-lucide="kanban" class="head-icon"></i>결과별 진행 현황</h2>
-            <span class="hint">카드를 끌어서 결과를 바꿀 수 있습니다 · 더블클릭하면 상세</span>
+            <h2><i data-lucide="kanban" class="head-icon"></i>상태별 진행 현황</h2>
+            <span class="hint">카드를 끌어서 상태를 바꿀 수 있습니다 · 더블클릭하면 상세</span>
           </div>
           <div class="board" id="board"></div>
         </section>
@@ -127,7 +126,7 @@
         <div class="chart-grid">
           <section class="card">
             <div class="card-head">
-              <h2><i data-lucide="pie-chart" class="head-icon"></i>결과 분포</h2>
+              <h2><i data-lucide="pie-chart" class="head-icon"></i>상태 분포</h2>
             </div>
             <div class="chart-wrap"><canvas id="statusChart"></canvas></div>
           </section>
@@ -185,13 +184,7 @@
           </div>
 
           <div class="field">
-            <label for="f_owner">담당자</label>
-            <input id="f_owner" name="owner" list="ownerList" placeholder="이름" autocomplete="off" />
-            <datalist id="ownerList"></datalist>
-          </div>
-
-          <div class="field">
-            <label for="f_status">결과</label>
+            <label for="f_status">상태</label>
             <select id="f_status" name="status"></select>
           </div>
 
@@ -308,7 +301,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="config.js?v=6"></script>
-  <script src="app.js?v=6"></script>
+  <script src="config.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

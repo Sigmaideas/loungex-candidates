@@ -10,7 +10,7 @@
 const STORAGE_KEY = 'loungex.candidates.v2';
 const SEED_URL = 'data/candidates.json';
 
-/* 시트의 "결과" 열 값. key 는 저장값이라 바꾸면 기존 데이터가 깨진다. */
+/* 시트의 "결과" 열에 대응. key 는 저장값이라 바꾸면 기존 데이터가 깨진다. */
 const STATUSES = [
   { key: 'review',   label: '후보지',   cls: 'st-review',   color: '#4263eb' },
   { key: 'progress', label: '진행중',   cls: 'st-progress', color: '#f08c00' },
@@ -26,8 +26,8 @@ const state = {
   search: '',
   statusFilter: '',
   regionFilter: '',
-  ownerFilter: '',
   kindFilter: '',
+  availableFilter: '',
   sortKey: 'name',
   sortDir: 'asc',
   editingId: null,
@@ -131,7 +131,7 @@ function load() {
 function normalize(o) {
   const item = Object.assign(
     {
-      id: uid(), name: '', kind: '', channel: '', owner: '',
+      id: uid(), name: '', kind: '', channel: '',
       address: '', naverUrl: '', placeId: '', region: '',
       status: 'review', floor: '', area: 0,
       deposit: 0, rent: 0, feeRate: 0, maintenance: 0, premium: 0,
@@ -140,6 +140,7 @@ function normalize(o) {
     },
     o
   );
+  delete item.owner;   // 담당 필드 폐지
   // 제안완료·드랍·기타 폐지. 이미 저장된 값은 옮겨 받는다
   if (item.status === 'proposed') item.status = 'progress';
   if (!STATUS_MAP[item.status]) item.status = 'review';   // drop · etc · 미상 → 후보지
@@ -154,10 +155,10 @@ function filtered() {
   return state.items.filter((it) => {
     if (state.statusFilter && it.status !== state.statusFilter) return false;
     if (state.regionFilter && (it.region || '') !== state.regionFilter) return false;
-    if (state.ownerFilter && (it.owner || '') !== state.ownerFilter) return false;
     if (state.kindFilter && (it.kind || '') !== state.kindFilter) return false;
+    if (state.availableFilter && (it.availableAt || '') !== state.availableFilter) return false;
     if (!q) return true;
-    return [it.name, it.address, it.region, it.memo, it.owner, it.floor, it.termsNote, it.pnl, it.contractNote]
+    return [it.name, it.address, it.region, it.memo, it.floor, it.termsNote, it.pnl, it.contractNote]
       .some((v) => String(v || '').toLowerCase().includes(q));
   });
 }
@@ -238,10 +239,9 @@ function fillSelect(sel, values, cur, allLabel) {
 
 function renderFilters() {
   fillSelect($('#regionFilter'), uniq('region'), state.regionFilter, '전체 지역');
-  fillSelect($('#ownerFilter'), uniq('owner'), state.ownerFilter, '전체 담당자');
   fillSelect($('#kindFilter'), uniq('kind'), state.kindFilter, '전체 구분');
+  fillSelect($('#availableFilter'), uniq('availableAt'), state.availableFilter, '전체 가능시기');
   $('#regionList').innerHTML = uniq('region').map((r) => `<option value="${esc(r)}"></option>`).join('');
-  $('#ownerList').innerHTML = uniq('owner').map((r) => `<option value="${esc(r)}"></option>`).join('');
 }
 
 function kindTag(kind) {
@@ -281,7 +281,7 @@ function renderTable() {
     rows.length === state.items.length ? `${rows.length}곳` : `${rows.length}곳 / 전체 ${state.items.length}곳`;
 
   if (!rows.length) {
-    body.innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--text-dim);padding:36px 0">조건에 맞는 후보지가 없습니다</td></tr>`;
+    body.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--text-dim);padding:36px 0">조건에 맞는 후보지가 없습니다</td></tr>`;
     return;
   }
 
@@ -298,7 +298,6 @@ function renderTable() {
           ${sub ? `<div class="cand-addr">${esc(sub)}</div>` : ''}
         </td>
         <td>${esc(it.region || '-')}</td>
-        <td>${esc(it.owner || '-')}</td>
         <td>${esc(it.floor || '-')}</td>
         <td class="num">${num(it.area) ? num(it.area).toLocaleString() + '평' : '-'}</td>
         <td class="num">${money(it.deposit)}</td>
@@ -325,7 +324,7 @@ function renderBoard() {
       ? list.map((it) => `
         <div class="board-card" draggable="true" data-id="${it.id}">
           <div class="board-card-name">${esc(it.name)}</div>
-          <div class="board-card-addr">${esc([it.region, it.owner].filter(Boolean).join(' · ') || '-')}</div>
+          <div class="board-card-addr">${esc([it.region, it.availableAt].filter(Boolean).join(' · ') || '-')}</div>
           <div class="board-card-foot">
             <span class="board-card-cost">${esc(rentLabel(it))}</span>
             ${it.kind ? kindTag(it.kind) : ''}
@@ -432,7 +431,7 @@ function setView(v) {
 }
 
 /* ===== 입력 폼 ===== */
-const FORM_FIELDS = ['name', 'kind', 'channel', 'owner', 'status', 'region', 'floor', 'address', 'naverUrl',
+const FORM_FIELDS = ['name', 'kind', 'channel', 'status', 'region', 'floor', 'address', 'naverUrl',
   'area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium', 'termsNote', 'pnl', 'availableAt', 'memo', 'contractNote'];
 const NUM_FIELDS = ['area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium'];
 
@@ -540,7 +539,6 @@ function openDetail(id) {
     </div>
     <p class="modal-sub" style="margin:-12px 0 20px">${esc([it.address, it.region, it.channel].filter(Boolean).join(' · ') || '위치 미입력')}</p>
     <div class="detail-grid">
-      ${cell('담당자', esc(it.owner || '-'))}
       ${cell('층수', esc(it.floor || '-'))}
       ${cell('전용면적', num(it.area) ? num(it.area).toLocaleString() + '평' : '-')}
       ${cell('보증금', moneyWon(it.deposit))}
@@ -662,7 +660,7 @@ async function init() {
     state.statusFilter = chip.dataset.status;
     renderChips(); renderTable(); icons();
   });
-  [['#regionFilter', 'regionFilter'], ['#ownerFilter', 'ownerFilter'], ['#kindFilter', 'kindFilter']]
+  [['#regionFilter', 'regionFilter'], ['#kindFilter', 'kindFilter'], ['#availableFilter', 'availableFilter']]
     .forEach(([sel, key]) => {
       $(sel).addEventListener('change', (e) => { state[key] = e.target.value; renderTable(); icons(); });
     });
