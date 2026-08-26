@@ -17,7 +17,6 @@ const STATUSES = [
   { key: 'signed',   label: '계약완료', cls: 'st-signed',   color: '#2f9e44' },
 ];
 const STATUS_MAP = Object.fromEntries(STATUSES.map((s) => [s.key, s]));
-const ACTIVE_KEYS = ['progress'];
 
 /* 매장 타입. 모든 후보지는 이 셋 중 하나다. */
 const TYPES = ['Type A', 'Type B', 'Type C'];
@@ -200,9 +199,6 @@ const uniq = (key) =>
 
 /* ===== 렌더 ===== */
 function render() {
-  $('#navCountList').textContent = state.items.length;
-  $('#navCountBoard').textContent = state.items.filter((i) => ACTIVE_KEYS.includes(i.status)).length;
-  $('#navCountMap').textContent = state.items.filter((i) => pinOf(i)).length;
   renderKpis();
   renderChips();
   renderFilters();
@@ -256,7 +252,7 @@ function fillSelect(sel, values, cur, allLabel) {
 
 function renderFilters() {
   fillSelect($('#regionFilter'), uniq('region'), state.regionFilter, '전체 지역');
-  fillSelect($('#typeFilter'), TYPES.filter((t) => state.items.some((i) => i.type === t)), state.typeFilter, '타입');
+  fillSelect($('#typeFilter'), TYPES.filter((t) => state.items.some((i) => i.type === t)), state.typeFilter, '전체 타입');
   $('#regionList').innerHTML = uniq('region').map((r) => `<option value="${esc(r)}"></option>`).join('');
 }
 
@@ -356,57 +352,16 @@ function renderBoard() {
    후보지 맵 (Leaflet + OpenStreetMap)
 
    좌표는 data/candidates.json 에 미리 넣어 둔다(도구로 한 번 지오코딩).
-   좌표가 없는 후보지는 지역(구/시) 중심점에 찍고 점선 테두리로 구분한다.
-   같은 지역이 여러 곳이면 겹치니까 id 로 정해지는 만큼 흩뿌린다.
+   좌표가 없는 후보지는 아예 안 찍는다 — 지역 중심에 대충 찍으면 실제로
+   거기 있는 것처럼 읽혀서 오히려 잘못된 정보가 된다. 대신 몇 곳이
+   빠졌는지 지도 아래에 적어 둔다.
    ========================================================= */
 
-/* 구/시 중심점. 좌표가 없는 후보지를 대략이라도 지도에 올리려고 둔다.
-   (Nominatim 으로 한 번 뽑아 박아 둔 값) */
-const REGION_CENTER = {
-  '경기 고양시': [37.666, 126.76164],
-  '경기 광명시': [37.47415, 126.86782],
-  '경기 구리시': [37.59436, 127.12959],
-  '경기 양평군': [37.48831, 127.4905],
-  '경기 의왕시': [37.35203, 126.96212],
-  '부산 해운대구': [35.16889, 129.13875],
-  '서울 강남구': [37.52555, 127.03862],
-  '서울 강동구': [37.55201, 127.17803],
-  '서울 강서구': [37.57005, 126.83966],
-  '서울 관악구': [37.45811, 126.95216],
-  '서울 광진구': [37.54185, 127.07711],
-  '서울 구로구': [37.50017, 126.83255],
-  '서울 노원구': [37.67245, 127.09843],
-  '서울 도봉구': [37.65296, 127.03268],
-  '서울 동대문구': [37.59712, 127.05199],
-  '서울 동작구': [37.50434, 126.95628],
-  '서울 마포구': [37.5683, 126.89725],
-  '서울 서대문구': [37.58228, 126.93572],
-  '서울 서초구': [37.4839, 127.0061],
-  '서울 성동구': [37.55699, 127.04709],
-  '서울 송파구': [37.51586, 127.07155],
-  '서울 영등포구': [37.51948, 126.92282],
-  '서울 용산구': [37.55285, 126.97257],
-  '서울 종로구': [37.57912, 126.99873],
-  '서울 중구': [37.55542, 126.97259],
-  '인천 중구': [37.46346, 126.44171],
-};
-
-const MAP_FALLBACK = [36.5, 127.9];   // 좌표를 하나도 못 구했을 때 — 남한 중심
+const MAP_FALLBACK = [36.5, 127.9];   // 찍을 게 하나도 없을 때 — 남한 중심
 let mapObj = null, mapLayer = null;
 
-/* id 를 씨앗으로 -1~1 사이 값을 만든다. 새로고침해도 핀이 안 튀게 난수 대신 해시를 쓴다. */
-function jitter(id, salt) {
-  let h = 2166136261;
-  for (const ch of String(id) + salt) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
-  return ((h >>> 0) / 4294967295) * 2 - 1;
-}
-
 function pinOf(it) {
-  if (Number.isFinite(it.lat) && Number.isFinite(it.lng)) return { ll: [it.lat, it.lng], exact: true };
-  const c = REGION_CENTER[it.region];
-  if (!c) return null;
-  // 지역 중심 반경 ~700m 안에서 흩뿌린다
-  return { ll: [c[0] + jitter(it.id, 'a') * 0.006, c[1] + jitter(it.id, 'o') * 0.0075], exact: false };
+  return Number.isFinite(it.lat) && Number.isFinite(it.lng) ? [it.lat, it.lng] : null;
 }
 
 function renderMap() {
@@ -432,17 +387,15 @@ function renderMap() {
   mapLayer.clearLayers();
 
   const pins = [];
-  let approx = 0, missing = 0;
+  let missing = 0;
   items.forEach((it) => {
-    const p = pinOf(it);
-    if (!p) { missing++; return; }
-    if (!p.exact) approx++;
+    const ll = pinOf(it);
+    if (!ll) { missing++; return; }
     const st = STATUS_MAP[it.status] || {};
-    const cls = `map-pin ${st.cls || ''}${p.exact ? '' : ' approx'}`;
-    const marker = L.marker(p.ll, {
+    const marker = L.marker(ll, {
       icon: L.divIcon({
         className: 'map-pin-wrap',
-        html: `<span class="${cls}" title="${esc(it.name)}">${esc(it.type.replace('Type ', ''))}</span>`,
+        html: `<span class="map-pin ${st.cls || ''}" title="${esc(it.name)}">${esc(it.type.replace('Type ', ''))}</span>`,
         iconSize: [22, 22], iconAnchor: [11, 11],
       }),
     });
@@ -450,13 +403,13 @@ function renderMap() {
       <div class="map-pop">
         <div class="map-pop-name">${esc(it.name)}</div>
         <div class="map-pop-meta">${typeTag(it.type)}<span class="tag ${st.cls}">${esc(st.label)}</span></div>
-        <div class="map-pop-addr">${esc(it.address || it.region || '-')}${p.exact ? '' : ' · 지역 중심 표시'}</div>
+        <div class="map-pop-addr">${esc(it.address || it.region || '-')}</div>
         <div class="map-pop-cost">${esc(rentLabel(it))}${num(it.area) ? ` · ${num(it.area)}평` : ''}</div>
         <a class="map-pop-link" href="${esc(mapUrl(it))}" target="_blank" rel="noopener">네이버 지도에서 보기</a>
       </div>`);
     marker.on('dblclick', () => openDetail(it.id));
     mapLayer.addLayer(marker);
-    pins.push(p.ll);
+    pins.push(ll);
   });
 
   if (pins.length) mapObj.fitBounds(L.latLngBounds(pins).pad(0.15), { maxZoom: 15 });
@@ -465,14 +418,12 @@ function renderMap() {
   setTimeout(() => mapObj.invalidateSize(), 0);
 
   $('#mapLegend').innerHTML = STATUSES.map((s) =>
-    `<span class="map-legend-item"><span class="map-pin ${s.cls}"></span>${esc(s.label)}</span>`).join('') +
-    '<span class="map-legend-item"><span class="map-pin approx"></span>지역 중심(주소 미확인)</span>';
+    `<span class="map-legend-item"><span class="map-pin ${s.cls}"></span>${esc(s.label)}</span>`).join('');
 
   hint.textContent = `${pins.length}곳 표시 · 핀 글자는 타입 · 더블클릭하면 상세`;
-  note.textContent = [
-    approx ? `${approx}곳은 정확한 주소를 못 찾아 지역 중심에 찍었습니다.` : '',
-    missing ? `${missing}곳은 지역 정보가 없어 표시하지 못했습니다.` : '',
-  ].filter(Boolean).join(' ');
+  note.textContent = missing
+    ? `${missing}곳은 주소로 좌표를 찾지 못해 지도에서 뺐습니다. 도로명주소를 넣으면 표시됩니다.`
+    : '';
 }
 
 function renderStats() {

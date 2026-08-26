@@ -97,17 +97,6 @@ body {
   opacity: 0.75;
 }
 .nav-item.active svg.lucide { opacity: 1; }
-.nav-badge {
-  margin-left: auto;
-  font-size: 10px;
-  padding: 2px 6px;
-  background: var(--surface-2);
-  color: var(--text-dim);
-  border-radius: 6px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.nav-item.active .nav-badge { background: #fff; color: var(--accent); }
 .sidebar-foot {
   margin-top: auto;
   color: var(--text-dim);
@@ -365,17 +354,18 @@ tbody tr:hover .row-actions { opacity: 1; }
 .tag.st-signed   { background: var(--positive-soft); color: var(--positive); }
 
 /* 매장 타입 — 면적에서 나온 값이라 A→C 순서가 있다.
-   임의의 세 색 대신 한 계열의 농도 3단계로 크기 순서를 읽히게 한다.
-   상태 태그가 파랑·주황·초록을 쓰므로 겹치지 않는 보라 계열. */
+   임의의 세 색 대신 초록 농도 3단계로 크기 순서를 읽히게 한다.
+   계약완료 태그도 초록이라 그쪽이 쓰는 #ebfbee 는 피했고,
+   모양으로도 갈린다(타입은 각진 사각, 상태는 알약). */
 .type-tag {
   display: inline-block; padding: 2px 8px; border-radius: 6px;
   background: var(--surface-2); color: var(--text-sub);
   font-size: 11px; font-weight: 700; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.type-tag.t-a { background: #f3f0ff; color: #7048e8; }   /* 대비 4.95:1 */
-.type-tag.t-b { background: #ded0ff; color: #5f3dc4; }   /* 대비 4.94:1 */
-.type-tag.t-c { background: #b197fc; color: #3b2585; }   /* 대비 4.86:1 */
+.type-tag.t-a { background: #d3f9d8; color: #237032; }   /* 대비 5.33:1 */
+.type-tag.t-b { background: #8ce99a; color: #1b5e24; }   /* 대비 5.33:1 */
+.type-tag.t-c { background: #40c057; color: #14471b; }   /* 대비 4.57:1 */
 
 td.strong { color: var(--text); font-weight: 700; }
 
@@ -620,9 +610,6 @@ td.strong { color: var(--text); font-weight: 700; }
 .map-pin.st-review   { background: var(--accent); }
 .map-pin.st-progress { background: var(--warn); }
 .map-pin.st-signed   { background: var(--positive); }
-/* 주소를 못 찾아 지역 중심에 찍은 핀 — 위치를 믿지 말라는 표시 */
-.map-pin.approx { opacity: 0.75; border-style: dashed; border-color: #fff; }
-
 .map-pop { min-width: 180px; }
 .map-pop-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
 .map-pop-meta { display: flex; gap: 5px; margin-bottom: 7px; }

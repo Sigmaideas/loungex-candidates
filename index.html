@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <!-- ?v= 는 캐시 버스팅. GitHub Pages 가 max-age=600 이라 파라미터를 안 바꾸면
        코드를 고쳐도 브라우저가 10분간 옛 파일을 계속 쓴다. app.js/style.css 수정 시 함께 올릴 것 -->
-  <link rel="stylesheet" href="style.css?v=16" />
+  <link rel="stylesheet" href="style.css?v=19" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -25,17 +25,14 @@
       <a class="nav-item active" data-view="list">
         <i data-lucide="list" class="nav-icon"></i>
         후보지 목록
-        <span class="nav-badge" id="navCountList">0</span>
       </a>
       <a class="nav-item" data-view="board">
         <i data-lucide="kanban" class="nav-icon"></i>
         진행 현황
-        <span class="nav-badge" id="navCountBoard">0</span>
       </a>
       <a class="nav-item" data-view="map">
         <i data-lucide="map" class="nav-icon"></i>
         후보지 맵
-        <span class="nav-badge" id="navCountMap">0</span>
       </a>
       <a class="nav-item" data-view="stats">
         <i data-lucide="pie-chart" class="nav-icon"></i>
@@ -80,7 +77,7 @@
             </div>
             <div class="chips" id="statusChips"></div>
             <select class="select" id="regionFilter"><option value="">전체 지역</option></select>
-            <select class="select" id="typeFilter"><option value="">타입</option></select>
+            <select class="select" id="typeFilter"><option value="">전체 타입</option></select>
           </div>
         </section>
 
@@ -300,7 +297,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="config.js?v=16"></script>
-  <script src="app.js?v=16"></script>
+  <script src="config.js?v=19"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
