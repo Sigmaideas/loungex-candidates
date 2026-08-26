@@ -356,10 +356,10 @@ tbody tr:hover .row-actions { opacity: 1; }
 /* 매장 타입 — 면적에서 나온 값이라 A→C 순서가 있다.
    회색 농도 3단계로 크기 순서만 읽히게 하고 색은 상태 태그에 양보한다. */
 .type-tag {
-  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  /* 모양·크기는 상태 태그(.tag)와 맞춘다. 구분은 색으로만 준다 */
+  display: inline-block; padding: 3px 9px; border-radius: 999px;
   background: var(--surface-2); color: var(--text-sub);
-  font-size: 11px; font-weight: 700; white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
 }
 .type-tag.t-a { background: #f1f3f5; color: #495057; }   /* 대비 7.35:1 */
 .type-tag.t-b { background: #dee2e6; color: #343a40; }   /* 대비 8.84:1 */
