@@ -364,13 +364,18 @@ tbody tr:hover .row-actions { opacity: 1; }
 .tag.st-progress { background: var(--warn-soft); color: var(--warn); }
 .tag.st-signed   { background: var(--positive-soft); color: var(--positive); }
 
-/* 매장 타입 — A/B/C 를 색이 아니라 글자로 읽게 두고 톤만 낮춘다 */
+/* 매장 타입 — 면적에서 나온 값이라 A→C 순서가 있다.
+   임의의 세 색 대신 한 계열의 농도 3단계로 크기 순서를 읽히게 한다.
+   상태 태그가 파랑·주황·초록을 쓰므로 겹치지 않는 보라 계열. */
 .type-tag {
   display: inline-block; padding: 2px 8px; border-radius: 6px;
   background: var(--surface-2); color: var(--text-sub);
   font-size: 11px; font-weight: 700; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.type-tag.t-a { background: #f3f0ff; color: #7048e8; }   /* 대비 4.95:1 */
+.type-tag.t-b { background: #ded0ff; color: #5f3dc4; }   /* 대비 4.94:1 */
+.type-tag.t-c { background: #b197fc; color: #3b2585; }   /* 대비 4.86:1 */
 
 td.strong { color: var(--text); font-weight: 700; }
 
@@ -585,6 +590,48 @@ td.strong { color: var(--text); font-weight: 700; }
 .sync-dot.auth { background: var(--warn); }
 @keyframes syncPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 
+
+/* ===== 후보지 맵 ===== */
+#mapCanvas {
+  height: 620px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  z-index: 0;   /* Leaflet 이 만드는 pane 이 모달 위로 못 올라오게 */
+}
+.map-fail { padding: 60px 0; text-align: center; color: var(--text-dim); font-size: 13px; }
+.map-note { margin: 12px 0 0; font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+.map-legend {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  margin: -6px 0 14px; font-size: 11.5px; color: var(--text-sub);
+}
+.map-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+
+/* 핀 — 상태로 색을 주고, 글자는 타입(A/B/C) */
+.map-pin-wrap { background: none; border: 0; }
+.map-pin {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--text-dim); color: #fff;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(31,35,41,0.35);
+  cursor: pointer;
+}
+.map-pin.st-review   { background: var(--accent); }
+.map-pin.st-progress { background: var(--warn); }
+.map-pin.st-signed   { background: var(--positive); }
+/* 주소를 못 찾아 지역 중심에 찍은 핀 — 위치를 믿지 말라는 표시 */
+.map-pin.approx { opacity: 0.75; border-style: dashed; border-color: #fff; }
+
+.map-pop { min-width: 180px; }
+.map-pop-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
+.map-pop-meta { display: flex; gap: 5px; margin-bottom: 7px; }
+.map-pop-addr { font-size: 11.5px; color: var(--text-dim); margin-bottom: 3px; }
+.map-pop-cost { font-size: 11.5px; color: var(--text-sub); font-variant-numeric: tabular-nums; }
+.map-pop-link { display: inline-block; margin-top: 8px; font-size: 11.5px; color: var(--accent); }
+.leaflet-popup-content { margin: 12px 14px; font-family: inherit; }
+.leaflet-popup-content-wrapper { border-radius: var(--radius-sm); }
+.leaflet-container { font-family: inherit; }
 
 /* ===== v2 추가 ===== */
 .unit-note {

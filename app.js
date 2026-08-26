@@ -21,6 +21,10 @@ const ACTIVE_KEYS = ['progress'];
 
 /* 매장 타입. 모든 후보지는 이 셋 중 하나다. */
 const TYPES = ['Type A', 'Type B', 'Type C'];
+function typeTag(type) {
+  const cls = { 'Type A': 't-a', 'Type B': 't-b', 'Type C': 't-c' }[type] || '';
+  return `<span class="type-tag ${cls}">${esc(type)}</span>`;
+}
 /* 타입이 없는 후보지(옛 데이터·시트 유입)는 전용면적으로 정한다 */
 function typeByArea(area) {
   const a = num(area);
@@ -143,7 +147,7 @@ function normalize(o) {
       address: '', naverUrl: '', placeId: '', region: '',
       status: 'review', floor: '', area: 0,
       deposit: 0, rent: 0, feeRate: 0, maintenance: 0, premium: 0,
-      availableAt: '', memo: '',
+      availableAt: '', memo: '', lat: null, lng: null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     },
     o
@@ -155,6 +159,8 @@ function normalize(o) {
   if (item.status === 'proposed') item.status = 'progress';
   if (!STATUS_MAP[item.status]) item.status = 'review';   // drop · etc · 미상 → 후보지
   // 정렬·표시에 쓰는 파생값
+  item.lat = Number.isFinite(parseFloat(item.lat)) ? parseFloat(item.lat) : null;
+  item.lng = Number.isFinite(parseFloat(item.lng)) ? parseFloat(item.lng) : null;
   item.initial = num(item.deposit) + num(item.premium);
   item.rentPerPyeong = num(item.area) && num(item.rent) ? num(item.rent) / num(item.area) : 0;
   return item;
@@ -196,11 +202,13 @@ const uniq = (key) =>
 function render() {
   $('#navCountList').textContent = state.items.length;
   $('#navCountBoard').textContent = state.items.filter((i) => ACTIVE_KEYS.includes(i.status)).length;
+  $('#navCountMap').textContent = state.items.filter((i) => pinOf(i)).length;
   renderKpis();
   renderChips();
   renderFilters();
   renderTable();
   renderBoard();
+  if (state.view === 'map') renderMap();
   if (state.view === 'stats') renderStats();
   icons();
 }
@@ -211,7 +219,7 @@ function kpiCard(o) {
       <div class="kpi-icon"><i data-lucide="${o.icon}"></i></div>
       <div class="kpi-label">${esc(o.label)}</div>
       <div class="kpi-value">${o.value}${o.unit ? `<small>${esc(o.unit)}</small>` : ''}</div>
-      <div class="kpi-sub">${esc(o.sub)}</div>
+      ${o.sub ? `<div class="kpi-sub">${esc(o.sub)}</div>` : ''}
     </div>`;
 }
 
@@ -219,13 +227,13 @@ function renderKpis() {
   const items = state.items;
   const by = (k) => items.filter((i) => i.status === k).length;
   const pct = (n) => (items.length ? Math.round((n / items.length) * 100) : 0);
-  const types = TYPES.map((t) => `${t.replace('Type ', '')} ${items.filter((i) => i.type === t).length}`).join(' · ');
+  const types = TYPES.map((t) => `${t} ${items.filter((i) => i.type === t).length}`).join(' · ');
 
   $('#kpiRow').innerHTML = [
-    kpiCard({ accent: true, icon: 'map-pin', label: '전체 후보지', value: items.length, unit: '곳', sub: `Type ${types}` }),
+    kpiCard({ accent: true, icon: 'map-pin', label: '전체 후보지', value: items.length, unit: '곳', sub: types }),
     kpiCard({ icon: 'search-check', label: '후보지', value: by('review'), unit: '곳', sub: `전체의 ${pct(by('review'))}%` }),
     kpiCard({ icon: 'activity', label: '협의중', value: by('progress'), unit: '곳', sub: `전체의 ${pct(by('progress'))}%` }),
-    kpiCard({ icon: 'circle-check', label: '계약완료', value: by('signed'), unit: '곳', sub: `파이프라인 ${by('progress') + by('signed')}곳` }),
+    kpiCard({ icon: 'circle-check', label: '계약완료', value: by('signed'), unit: '곳' }),
   ].join('');
 }
 
@@ -248,7 +256,7 @@ function fillSelect(sel, values, cur, allLabel) {
 
 function renderFilters() {
   fillSelect($('#regionFilter'), uniq('region'), state.regionFilter, '전체 지역');
-  fillSelect($('#typeFilter'), TYPES.filter((t) => state.items.some((i) => i.type === t)), state.typeFilter, '전체 타입');
+  fillSelect($('#typeFilter'), TYPES.filter((t) => state.items.some((i) => i.type === t)), state.typeFilter, '타입');
   $('#regionList').innerHTML = uniq('region').map((r) => `<option value="${esc(r)}"></option>`).join('');
 }
 
@@ -292,7 +300,7 @@ function renderTable() {
     const sub = [it.address, it.channel].filter(Boolean).join(' · ');
     return `
       <tr data-id="${it.id}">
-        <td><span class="type-tag">${esc(it.type)}</span></td>
+        <td>${typeTag(it.type)}</td>
         <td class="cell-name">
           <div class="cand-name" data-act="detail">${esc(it.name)}
             <a class="map-link" href="${esc(mapUrl(it))}" target="_blank" rel="noopener" title="네이버 지도에서 보기" data-act="map"><i data-lucide="external-link"></i></a>
@@ -329,7 +337,7 @@ function renderBoard() {
           <div class="board-card-addr">${esc([it.region, it.availableAt].filter(Boolean).join(' · ') || '-')}</div>
           <div class="board-card-foot">
             <span class="board-card-cost">${esc(rentLabel(it))}</span>
-            <span class="type-tag">${esc(it.type)}</span>
+            ${typeTag(it.type)}
           </div>
         </div>`).join('')
       : '<div class="board-empty">비어 있음</div>';
@@ -342,6 +350,129 @@ function renderBoard() {
         ${cards}
       </div>`;
   }).join('');
+}
+
+/* =========================================================
+   후보지 맵 (Leaflet + OpenStreetMap)
+
+   좌표는 data/candidates.json 에 미리 넣어 둔다(도구로 한 번 지오코딩).
+   좌표가 없는 후보지는 지역(구/시) 중심점에 찍고 점선 테두리로 구분한다.
+   같은 지역이 여러 곳이면 겹치니까 id 로 정해지는 만큼 흩뿌린다.
+   ========================================================= */
+
+/* 구/시 중심점. 좌표가 없는 후보지를 대략이라도 지도에 올리려고 둔다.
+   (Nominatim 으로 한 번 뽑아 박아 둔 값) */
+const REGION_CENTER = {
+  '경기 고양시': [37.666, 126.76164],
+  '경기 광명시': [37.47415, 126.86782],
+  '경기 구리시': [37.59436, 127.12959],
+  '경기 양평군': [37.48831, 127.4905],
+  '경기 의왕시': [37.35203, 126.96212],
+  '부산 해운대구': [35.16889, 129.13875],
+  '서울 강남구': [37.52555, 127.03862],
+  '서울 강동구': [37.55201, 127.17803],
+  '서울 강서구': [37.57005, 126.83966],
+  '서울 관악구': [37.45811, 126.95216],
+  '서울 광진구': [37.54185, 127.07711],
+  '서울 구로구': [37.50017, 126.83255],
+  '서울 노원구': [37.67245, 127.09843],
+  '서울 도봉구': [37.65296, 127.03268],
+  '서울 동대문구': [37.59712, 127.05199],
+  '서울 동작구': [37.50434, 126.95628],
+  '서울 마포구': [37.5683, 126.89725],
+  '서울 서대문구': [37.58228, 126.93572],
+  '서울 서초구': [37.4839, 127.0061],
+  '서울 성동구': [37.55699, 127.04709],
+  '서울 송파구': [37.51586, 127.07155],
+  '서울 영등포구': [37.51948, 126.92282],
+  '서울 용산구': [37.55285, 126.97257],
+  '서울 종로구': [37.57912, 126.99873],
+  '서울 중구': [37.55542, 126.97259],
+  '인천 중구': [37.46346, 126.44171],
+};
+
+const MAP_FALLBACK = [36.5, 127.9];   // 좌표를 하나도 못 구했을 때 — 남한 중심
+let mapObj = null, mapLayer = null;
+
+/* id 를 씨앗으로 -1~1 사이 값을 만든다. 새로고침해도 핀이 안 튀게 난수 대신 해시를 쓴다. */
+function jitter(id, salt) {
+  let h = 2166136261;
+  for (const ch of String(id) + salt) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) / 4294967295) * 2 - 1;
+}
+
+function pinOf(it) {
+  if (Number.isFinite(it.lat) && Number.isFinite(it.lng)) return { ll: [it.lat, it.lng], exact: true };
+  const c = REGION_CENTER[it.region];
+  if (!c) return null;
+  // 지역 중심 반경 ~700m 안에서 흩뿌린다
+  return { ll: [c[0] + jitter(it.id, 'a') * 0.006, c[1] + jitter(it.id, 'o') * 0.0075], exact: false };
+}
+
+function renderMap() {
+  const items = filtered();
+  const hint = $('#mapHint');
+  const note = $('#mapNote');
+
+  if (!window.L) {
+    $('#mapCanvas').innerHTML = '<div class="map-fail">지도를 불러오지 못했습니다. 네트워크를 확인해 주세요.</div>';
+    hint.textContent = ''; note.textContent = '';
+    return;
+  }
+
+  if (!mapObj) {
+    mapObj = L.map('mapCanvas', { scrollWheelZoom: true, zoomControl: true }).setView(MAP_FALLBACK, 7);
+    // OSM 기본 타일 — 키가 필요 없다 (CARTO 는 2025 부터 키를 요구한다)
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(mapObj);
+    mapLayer = L.layerGroup().addTo(mapObj);
+  }
+  mapLayer.clearLayers();
+
+  const pins = [];
+  let approx = 0, missing = 0;
+  items.forEach((it) => {
+    const p = pinOf(it);
+    if (!p) { missing++; return; }
+    if (!p.exact) approx++;
+    const st = STATUS_MAP[it.status] || {};
+    const cls = `map-pin ${st.cls || ''}${p.exact ? '' : ' approx'}`;
+    const marker = L.marker(p.ll, {
+      icon: L.divIcon({
+        className: 'map-pin-wrap',
+        html: `<span class="${cls}" title="${esc(it.name)}">${esc(it.type.replace('Type ', ''))}</span>`,
+        iconSize: [22, 22], iconAnchor: [11, 11],
+      }),
+    });
+    marker.bindPopup(`
+      <div class="map-pop">
+        <div class="map-pop-name">${esc(it.name)}</div>
+        <div class="map-pop-meta">${typeTag(it.type)}<span class="tag ${st.cls}">${esc(st.label)}</span></div>
+        <div class="map-pop-addr">${esc(it.address || it.region || '-')}${p.exact ? '' : ' · 지역 중심 표시'}</div>
+        <div class="map-pop-cost">${esc(rentLabel(it))}${num(it.area) ? ` · ${num(it.area)}평` : ''}</div>
+        <a class="map-pop-link" href="${esc(mapUrl(it))}" target="_blank" rel="noopener">네이버 지도에서 보기</a>
+      </div>`);
+    marker.on('dblclick', () => openDetail(it.id));
+    mapLayer.addLayer(marker);
+    pins.push(p.ll);
+  });
+
+  if (pins.length) mapObj.fitBounds(L.latLngBounds(pins).pad(0.15), { maxZoom: 15 });
+  else mapObj.setView(MAP_FALLBACK, 7);
+  // 뷰가 hidden 이었다가 켜지면 크기를 다시 재야 타일이 채워진다
+  setTimeout(() => mapObj.invalidateSize(), 0);
+
+  $('#mapLegend').innerHTML = STATUSES.map((s) =>
+    `<span class="map-legend-item"><span class="map-pin ${s.cls}"></span>${esc(s.label)}</span>`).join('') +
+    '<span class="map-legend-item"><span class="map-pin approx"></span>지역 중심(주소 미확인)</span>';
+
+  hint.textContent = `${pins.length}곳 표시 · 핀 글자는 타입 · 더블클릭하면 상세`;
+  note.textContent = [
+    approx ? `${approx}곳은 정확한 주소를 못 찾아 지역 중심에 찍었습니다.` : '',
+    missing ? `${missing}곳은 지역 정보가 없어 표시하지 못했습니다.` : '',
+  ].filter(Boolean).join(' ');
 }
 
 function renderStats() {
@@ -422,12 +553,13 @@ function renderStats() {
 }
 
 /* ===== 뷰 전환 ===== */
-const VIEW_TITLE = { list: '후보지 목록', board: '진행 현황', stats: '분석' };
+const VIEW_TITLE = { list: '후보지 목록', board: '진행 현황', map: '후보지 맵', stats: '분석' };
 function setView(v) {
   state.view = v;
   $$('.nav-item[data-view]').forEach((el) => el.classList.toggle('active', el.dataset.view === v));
-  ['list', 'board', 'stats'].forEach((k) => { $(`#${k}View`).hidden = k !== v; });
+  ['list', 'board', 'map', 'stats'].forEach((k) => { $(`#${k}View`).hidden = k !== v; });
   $('#pageTitle').textContent = VIEW_TITLE[v];
+  if (v === 'map') renderMap();
   if (v === 'stats') renderStats();
   icons();
 }
@@ -533,7 +665,7 @@ function openDetail(id) {
   $('#detailBody').innerHTML = `
     <div class="detail-head">
       <h3 style="margin:0">${esc(it.name)}</h3>
-      <span class="type-tag">${esc(it.type)}</span>
+      ${typeTag(it.type)}
       <span class="tag ${st.cls}">${esc(st.label)}</span>
       <a class="btn ghost" style="margin-left:auto" href="${esc(mapUrl(it))}" target="_blank" rel="noopener">
         <i data-lucide="map"></i><span>지도</span>
@@ -653,16 +785,16 @@ async function init() {
   $('#saveBtn').addEventListener('click', () => saveToServer(true));
 
   // 필터
-  $('#searchInput').addEventListener('input', (e) => { state.search = e.target.value; renderTable(); icons(); });
+  $('#searchInput').addEventListener('input', (e) => { state.search = e.target.value; renderTable(); if (state.view === 'map') renderMap(); icons(); });
   $('#statusChips').addEventListener('click', (e) => {
     const chip = e.target.closest('.chip');
     if (!chip) return;
     state.statusFilter = chip.dataset.status;
-    renderChips(); renderTable(); icons();
+    renderChips(); renderTable(); if (state.view === 'map') renderMap(); icons();
   });
   [['#regionFilter', 'regionFilter'], ['#typeFilter', 'typeFilter']]
     .forEach(([sel, key]) => {
-      $(sel).addEventListener('change', (e) => { state[key] = e.target.value; renderTable(); icons(); });
+      $(sel).addEventListener('change', (e) => { state[key] = e.target.value; renderTable(); if (state.view === 'map') renderMap(); icons(); });
     });
 
   // 정렬
