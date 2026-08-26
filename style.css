@@ -362,7 +362,6 @@ tbody tr:hover .row-actions { opacity: 1; }
 .tag.st-review   { background: var(--accent-soft); color: var(--accent); }
 .tag.st-progress { background: var(--warn-soft); color: var(--warn); }
 .tag.st-signed   { background: var(--positive-soft); color: var(--positive); }
-.tag.st-etc      { background: var(--surface-2); color: var(--text-dim); }
 
 /* 구분 — 직영 / 가맹 / 베이커리 */
 .kind-tag {
@@ -379,7 +378,8 @@ td.strong { color: var(--text); font-weight: 700; }
 /* ===== Kanban ===== */
 .board {
   display: grid;
-  grid-template-columns: repeat(6, minmax(168px, 1fr));
+  /* STATUSES 개수와 맞출 것 */
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 8px;
