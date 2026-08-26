@@ -1,8 +1,9 @@
 /**
- * 팀 공유 설정 (선택)
+ * 팀 공유 저장소 주소
  *
- * Cloudflare Worker 를 배포했다면 그 주소를 여기에 적는다. 비워 두면 이 브라우저에만
- * 저장하는 로컬 모드로 동작한다. 화면의 "팀 공유 설정" 에서 입력한 값이 있으면
- * 그 값이 우선한다(팀원마다 파일을 고칠 필요가 없게).
+ * 이 주소가 있으면 대시보드는 열 때 서버 목록을 받아오고, [저장하기] 를 누를 때
+ * 서버에 올린다. 비워 두면 이 브라우저에만 저장하는 로컬 모드로 동작한다.
+ *
+ * 배포·재배포 방법은 worker/README.md 참고.
  */
-window.LOUNGEX_CANDIDATES_API = '';
+window.LOUNGEX_CANDIDATES_API = 'https://loungex-candidates-api.sigmaidea.workers.dev';

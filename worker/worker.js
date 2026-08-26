@@ -7,12 +7,11 @@
  * 엔드포인트
  *   GET  /candidates        → { items, savedAt, rev }
  *   POST /candidates/sync   → { items: [...], deletes: {id: iso} } 를 병합하고 병합 결과를 돌려준다
- *   GET  /sheet?url=...     → 구글 시트 공개 CSV 를 서버에서 받아 중계 (브라우저 CORS 우회)
- *   GET  /ping              → 팀 키 확인용
+ *   GET  /ping              → 연결 확인용
  *
  * 인증
- *   모든 요청에 X-Team-Key 헤더가 필요하다. 값은 secret TEAM_KEY 와 비교한다.
- *   (계정 개념 없이 팀 공용 암호 하나. 내부용 도구 수준의 보호다.)
+ *   없다. 사내 공유 대시보드라 암호 없이 쓰기로 했다. 방어선은 ALLOW_ORIGINS 뿐이고
+ *   이건 브라우저만 막는다 — 주소를 아는 사람은 curl 로 그냥 쓸 수 있다.
  *
  * 병합 규칙 (동시 편집 대응)
  *   항목마다 updatedAt 을 비교해 더 최신인 쪽이 이긴다(Last-Write-Wins).
@@ -35,7 +34,7 @@ function corsHeaders(reqOrigin) {
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Team-Key',
+    'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -46,17 +45,6 @@ function json(obj, status, cors) {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8', ...cors },
   });
-}
-
-/* 길이를 흘리지 않도록 상수 시간에 가깝게 비교 */
-function keyMatches(given, expected) {
-  if (!expected) return false;
-  const a = String(given || '');
-  const b = String(expected);
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 function emptyDoc() {
@@ -136,9 +124,6 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     if (!env.DATA) return json({ error: 'kv_not_bound' }, 500, cors);
-    if (!keyMatches(request.headers.get('X-Team-Key'), env.TEAM_KEY)) {
-      return json({ error: 'unauthorized' }, 401, cors);
-    }
 
     if (url.pathname === '/ping') return json({ ok: true }, 200, cors);
 
@@ -163,28 +148,6 @@ export default {
         );
       }
       return json({ items: merged.items, savedAt: merged.savedAt, rev: merged.rev, changed: merged.changed }, 200, cors);
-    }
-
-    // 구글 시트 공개 CSV 중계. 브라우저에서 직접 부르면 CORS 로 막히는 경우가 있어 서버가 받아온다.
-    if (url.pathname === '/sheet' && request.method === 'GET') {
-      const target = url.searchParams.get('url') || '';
-      let parsed;
-      try {
-        parsed = new URL(target);
-      } catch (_) {
-        return json({ error: 'invalid_url' }, 400, cors);
-      }
-      // 구글 시트만 허용 — 임의 URL 을 대신 불러 주는 오픈 프록시가 되면 안 된다
-      if (parsed.protocol !== 'https:' || parsed.hostname !== 'docs.google.com') {
-        return json({ error: 'only_google_sheets_allowed' }, 400, cors);
-      }
-      const r = await fetch(parsed.toString(), { headers: { 'User-Agent': 'loungex-candidates' } });
-      if (!r.ok) return json({ error: 'fetch_failed', status: r.status }, 502, cors);
-      const text = await r.text();
-      if (text.trim().startsWith('<')) {
-        return json({ error: 'not_public', hint: '시트를 "웹에 게시"하고 CSV 링크를 사용하세요' }, 400, cors);
-      }
-      return new Response(text, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8', ...cors } });
     }
 
     return json({ error: 'not_found' }, 404, cors);

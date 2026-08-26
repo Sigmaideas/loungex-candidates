@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <!-- ?v= 는 캐시 버스팅. GitHub Pages 가 max-age=600 이라 파라미터를 안 바꾸면
        코드를 고쳐도 브라우저가 10분간 옛 파일을 계속 쓴다. app.js/style.css 수정 시 함께 올릴 것 -->
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -34,11 +34,6 @@
         <i data-lucide="pie-chart" class="nav-icon"></i>
         분석
       </a>
-      <div class="nav-section">데이터</div>
-      <a class="nav-item" id="dataBtn">
-        <i data-lucide="database" class="nav-icon"></i>
-        가져오기 · 내보내기
-      </a>
     </nav>
     <div class="sidebar-foot">내부용 · v2.0<br />금액 단위 천원</div>
   </aside>
@@ -54,9 +49,13 @@
           <span class="meta-label" id="syncLabel">마지막 저장</span>
           <span class="meta-value" id="lastSaved">-</span>
         </div>
-        <button class="btn" id="addBtn" title="새 후보지를 추가합니다">
+        <button class="btn ghost" id="addBtn" title="새 후보지를 추가합니다">
           <i data-lucide="plus"></i>
           <span>후보지 추가</span>
+        </button>
+        <button class="btn" id="saveBtn" title="바뀐 내용을 팀 전체에 저장합니다">
+          <i data-lucide="cloud-upload"></i>
+          <span id="saveBtnText">저장하기</span>
         </button>
       </div>
     </header>
@@ -308,130 +307,8 @@
     </div>
   </div>
 
-  <!-- ===== 데이터 모달 ===== -->
-  <div class="modal" id="dataModal" hidden>
-    <div class="modal-bg" data-close="dataModal"></div>
-    <div class="modal-card narrow">
-      <button class="modal-close" data-close="dataModal" aria-label="닫기">&times;</button>
-      <h3>데이터 가져오기 · 내보내기</h3>
-      <p class="modal-sub">후보지 데이터는 이 브라우저에 저장됩니다. 팀과 같이 보려면 아래 팀 공유를 설정하세요.</p>
-      <div class="data-actions">
-        <button class="data-action" id="importSheet">
-          <span class="di"><i data-lucide="sheet"></i></span>
-          <span><span class="dt">구글 시트 · 엑셀 가져오기</span><span class="dd">CSV · XLSX 파일, 시트 주소, 붙여넣기 모두 지원</span></span>
-        </button>
-        <button class="data-action" id="teamSetup">
-          <span class="di"><i data-lucide="users"></i></span>
-          <span><span class="dt">팀 공유 설정</span><span class="dd" id="teamSetupDesc">워커 주소와 팀 키를 입력하면 팀원과 같은 데이터를 봅니다</span></span>
-        </button>
-        <button class="data-action" id="exportJson">
-          <span class="di"><i data-lucide="download"></i></span>
-          <span><span class="dt">JSON 내보내기</span><span class="dd">전체 데이터를 파일로 저장 (백업 · 공유용)</span></span>
-        </button>
-        <button class="data-action" id="exportCsv">
-          <span class="di"><i data-lucide="table"></i></span>
-          <span><span class="dt">CSV 내보내기</span><span class="dd">시트와 같은 열 구성으로 내보냅니다</span></span>
-        </button>
-        <button class="data-action" id="importJson">
-          <span class="di"><i data-lucide="upload"></i></span>
-          <span><span class="dt">JSON 가져오기</span><span class="dd">내보낸 파일을 불러와 현재 목록에 병합</span></span>
-        </button>
-        <button class="data-action" id="reloadSeed">
-          <span class="di"><i data-lucide="rotate-ccw"></i></span>
-          <span><span class="dt">시트 원본 다시 불러오기</span><span class="dd">data/candidates.json 의 후보지 79곳을 다시 넣습니다</span></span>
-        </button>
-        <button class="data-action danger" id="clearAll">
-          <span class="di"><i data-lucide="trash-2"></i></span>
-          <span><span class="dt">전체 삭제</span><span class="dd">이 브라우저에 저장된 후보지를 모두 지웁니다</span></span>
-        </button>
-      </div>
-      <input type="file" id="fileInput" accept="application/json,.json" hidden />
-    </div>
-  </div>
-
-  <!-- ===== 시트 가져오기 모달 ===== -->
-  <div class="modal" id="sheetModal" hidden>
-    <div class="modal-bg" data-close="sheetModal"></div>
-    <div class="modal-card">
-      <button class="modal-close" data-close="sheetModal" aria-label="닫기">&times;</button>
-      <h3>구글 시트 · 엑셀 가져오기</h3>
-      <p class="modal-sub">첫 줄을 머리글로 읽고, 열을 후보지 항목에 연결합니다. 금액은 시트와 같은 천원 단위로 읽습니다.</p>
-
-      <div id="sheetStep1">
-        <div class="data-actions">
-          <button class="data-action" id="sheetPickFile">
-            <span class="di"><i data-lucide="file-spreadsheet"></i></span>
-            <span><span class="dt">파일 선택</span><span class="dd">.xlsx · .xls · .csv · .tsv</span></span>
-          </button>
-        </div>
-
-        <div class="field full" style="margin-top:16px">
-          <label for="sheetUrl">구글 시트 공개 CSV 주소</label>
-          <div class="inline-row">
-            <input id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv" autocomplete="off" />
-            <button type="button" class="btn ghost" id="sheetUrlLoad">불러오기</button>
-          </div>
-          <span class="field-hint">시트 → 파일 → 공유 → 웹에 게시 → 쉼표로 구분된 값(.csv)</span>
-        </div>
-
-        <div class="field full" style="margin-top:16px">
-          <label for="sheetPaste">또는 시트에서 복사해 붙여넣기</label>
-          <textarea id="sheetPaste" placeholder="머리글 줄을 포함해서 시트 범위를 복사해 붙여넣으세요"></textarea>
-          <div class="inline-row" style="margin-top:8px">
-            <button type="button" class="btn ghost" id="sheetPasteLoad"><i data-lucide="clipboard-check"></i><span>붙여넣은 내용 읽기</span></button>
-          </div>
-        </div>
-      </div>
-
-      <div id="sheetStep2" hidden>
-        <div class="map-summary" id="mapSummary"></div>
-        <div class="map-grid" id="mapGrid"></div>
-        <label class="check-row">
-          <input type="checkbox" id="mapUpsert" checked />
-          <span>후보지명이 같으면 새로 만들지 않고 갱신</span>
-        </label>
-        <div class="form-foot">
-          <button type="button" class="btn ghost" id="mapBack"><i data-lucide="arrow-left"></i><span>다시 선택</span></button>
-          <div class="form-foot-right">
-            <button type="button" class="btn" id="mapConfirm"><i data-lucide="check"></i><span>가져오기</span></button>
-          </div>
-        </div>
-      </div>
-
-      <input type="file" id="sheetFile" accept=".csv,.tsv,.txt,.xlsx,.xls" hidden />
-    </div>
-  </div>
-
-  <!-- ===== 팀 공유 설정 모달 ===== -->
-  <div class="modal" id="teamModal" hidden>
-    <div class="modal-bg" data-close="teamModal"></div>
-    <div class="modal-card narrow">
-      <button class="modal-close" data-close="teamModal" aria-label="닫기">&times;</button>
-      <h3>팀 공유 설정</h3>
-      <p class="modal-sub">Cloudflare Worker 주소와 팀 키를 넣으면 팀원 모두 같은 후보지 목록을 봅니다. 배포 방법은 <code>worker/README.md</code> 참고.</p>
-      <div class="form-grid">
-        <div class="field full">
-          <label for="teamApi">워커 주소</label>
-          <input id="teamApi" placeholder="https://loungex-candidates-api.계정.workers.dev" autocomplete="off" />
-        </div>
-        <div class="field full">
-          <label for="teamKey">팀 키</label>
-          <input id="teamKey" type="password" placeholder="wrangler secret put TEAM_KEY 로 넣은 값" autocomplete="off" />
-        </div>
-      </div>
-      <div class="team-status" id="teamStatus" hidden></div>
-      <div class="form-foot">
-        <button type="button" class="btn danger" id="teamDisconnect" hidden><i data-lucide="unplug"></i><span>연결 해제</span></button>
-        <div class="form-foot-right">
-          <button type="button" class="btn ghost" data-close="teamModal">취소</button>
-          <button type="button" class="btn" id="teamConnect"><i data-lucide="plug"></i><span>연결 테스트 후 저장</span></button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="toast" id="toast"></div>
-  <script src="config.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="config.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

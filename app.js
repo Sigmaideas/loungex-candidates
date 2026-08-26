@@ -32,6 +32,7 @@ const state = {
   sortDir: 'asc',
   editingId: null,
   savedAt: null,
+  dirty: false,   // 저장 안 한 변경이 있는지
 };
 
 const charts = { status: null, region: null, scatter: null };
@@ -264,14 +265,12 @@ function renderTable() {
       <div class="empty-state">
         <div class="ei"><i data-lucide="map-pinned"></i></div>
         <h3>등록된 후보지가 없습니다</h3>
-        <p>구글 시트의 후보지 표를 불러오거나, 직접 추가하세요.</p>
+        <p>우측 위 <b>후보지 추가</b> 로 첫 후보지를 등록하세요.</p>
         <div class="empty-actions">
-          <button class="btn" id="emptySeed"><i data-lucide="rotate-ccw"></i><span>시트 원본 불러오기</span></button>
-          <button class="btn ghost" id="emptyAdd"><i data-lucide="plus"></i><span>직접 추가</span></button>
+          <button class="btn" id="emptyAdd"><i data-lucide="plus"></i><span>후보지 추가</span></button>
         </div>
       </div>`;
     $('#emptyAdd').onclick = () => openForm();
-    $('#emptySeed').onclick = () => loadSeed(true);
     $('#tableHint').textContent = '';
     return;
   }
@@ -575,104 +574,19 @@ function closeModal(id) {
   if ($$('.modal:not([hidden])').length === 0) document.body.style.overflow = '';
 }
 
-/* ===== 내보내기 · 가져오기 ===== */
-function download(filename, text, mime) {
-  const blob = new Blob([text], { type: mime || 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function exportJson() {
-  download(`loungex-candidates-${todayISO()}.json`,
-    JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), items: state.items }, null, 2));
-  toast('JSON 파일을 내보냈습니다');
-}
-
-/* 시트와 같은 열 순서로 내보낸다 */
-const CSV_COLS = [
-  ['kind', '구분'], ['channel', '경로'], ['owner', '담당자'], ['name', '건물명'],
-  ['locationOut', '위치'], ['statusLabel', '결과'], ['floor', '층수'], ['area', '전용 면적'],
-  ['deposit', '보증금'], ['rent', '고정 임차료'], ['feeRate', '수수료율'],
-  ['maintenance', '건물 관리비'], ['premium', '권리금'],
-  ['pnl', '예상손익'], ['availableAt', '계약 가능시기'], ['memo', '기타'], ['contractNote', '계약 완료'],
-  ['region', '지역'], ['termsNote', '조건 비고'],
-];
-
-function exportCsv() {
-  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = ['"[단위 : 평 / 천 / %]"', CSV_COLS.map((c) => cell(c[1])).join(',')];
-  state.items.forEach((it) => {
-    const row = Object.assign({}, it, {
-      statusLabel: (STATUS_MAP[it.status] || {}).label || it.status,
-      locationOut: it.naverUrl || it.address,
-      feeRate: num(it.feeRate) ? num(it.feeRate) + '%' : '',
-    });
-    NUM_FIELDS.filter((k) => k !== 'feeRate').forEach((k) => { if (!num(row[k])) row[k] = ''; });
-    lines.push(CSV_COLS.map((c) => cell(row[c[0]])).join(','));
-  });
-  // 엑셀이 한글을 깨지 않게 BOM 을 붙인다
-  download(`loungex-candidates-${todayISO()}.csv`, '﻿' + lines.join('\n'), 'text/csv;charset=utf-8');
-  toast('CSV 파일을 내보냈습니다');
-}
-
-function importJson(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(reader.result);
-      const incoming = Array.isArray(parsed) ? parsed : parsed.items;
-      if (!Array.isArray(incoming)) throw new Error('items 배열이 없습니다');
-      mergeItems(incoming);
-      closeModal('dataModal');
-    } catch (err) {
-      console.error(err);
-      toast('파일을 읽지 못했습니다 — 내보낸 JSON 인지 확인해 주세요');
-    }
-  };
-  reader.readAsText(file);
-}
-
-function mergeItems(incoming) {
-  const byId = new Map(state.items.map((i) => [i.id, i]));
-  let added = 0, updated = 0;
-  incoming.forEach((raw) => {
-    const it = normalize(raw);
-    if (byId.has(it.id)) { byId.set(it.id, Object.assign(byId.get(it.id), it)); updated++; }
-    else { byId.set(it.id, it); added++; }
-  });
-  state.items = Array.from(byId.values());
-  save();
-  render();
-  toast(`${added}곳 추가 · ${updated}곳 갱신`);
-}
-
-/* 구글 시트에서 뽑아 둔 원본 (data/candidates.json) */
+/* 서버에 아무것도 없을 때만 쓰는 초기 데이터 (data/candidates.json) */
 async function loadSeed(silent) {
   try {
     const r = await fetch(SEED_URL + '?t=' + Date.now());
     if (!r.ok) throw new Error('status ' + r.status);
     const data = await r.json();
-    mergeItems(data.items || []);
-    closeModal('dataModal');
+    state.items = (data.items || []).map(normalize);
+    persistLocal();
+    render();
   } catch (e) {
     console.error(e);
-    if (!silent) toast('시트 원본을 불러오지 못했습니다 (로컬 서버로 열어 주세요)');
+    if (!silent) toast('초기 데이터를 불러오지 못했습니다');
   }
-}
-
-function clearAll() {
-  if (!confirm('저장된 후보지를 모두 삭제합니다. 되돌릴 수 없습니다. 계속할까요?')) return;
-  state.items = [];
-  save();
-  render();
-  closeModal('dataModal');
-  toast('전체 삭제했습니다');
 }
 
 /* ===== 드래그 앤 드롭 ===== */
@@ -729,7 +643,7 @@ async function init() {
   const stored = load();
   state.items = stored.items.map(normalize);
   state.savedAt = stored.savedAt;
-  loadTeamConfig();
+  sync.api = (window.LOUNGEX_CANDIDATES_API || '').replace(/\/+$/, '');
   renderSyncBadge();
 
   $('#f_status').innerHTML = STATUSES.map((s) => `<option value="${s.key}">${s.label}</option>`).join('');
@@ -737,8 +651,8 @@ async function init() {
   $$('.nav-item[data-view]').forEach((el) => {
     el.addEventListener('click', (e) => { e.preventDefault(); setView(el.dataset.view); });
   });
-  $('#dataBtn').addEventListener('click', () => openModal('dataModal'));
   $('#addBtn').addEventListener('click', () => openForm());
+  $('#saveBtn').addEventListener('click', () => saveToServer(true));
 
   // 필터
   $('#searchInput').addEventListener('input', (e) => { state.search = e.target.value; renderTable(); icons(); });
@@ -801,69 +715,50 @@ async function init() {
     }
   });
 
-  // 데이터
-  $('#exportJson').addEventListener('click', exportJson);
-  $('#exportCsv').addEventListener('click', exportCsv);
-  $('#importJson').addEventListener('click', () => $('#fileInput').click());
-  $('#fileInput').addEventListener('change', (e) => {
-    if (e.target.files[0]) importJson(e.target.files[0]);
-    e.target.value = '';
+  // 저장 안 한 변경이 있는 채로 탭을 닫으려 하면 잡는다
+  window.addEventListener('beforeunload', (e) => {
+    if (!state.dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
   });
-  $('#reloadSeed').addEventListener('click', () => loadSeed(false));
-  $('#clearAll').addEventListener('click', clearAll);
 
   bindBoardDnd();
-  bindSheetUi();
-  updateTeamSetupDesc();
   render();
   setView('list');
 
-  // 첫 실행이면 시트 원본을 자동으로 넣는다
-  if (!state.items.length && !teamMode()) await loadSeed(true);
-  if (teamMode()) { doSync(); startPolling(); }
+  if (shared()) {
+    await pull(true);
+    startPolling();
+  } else if (!state.items.length) {
+    await loadSeed(true);   // 공유 서버가 설정 안 된 로컬 모드
+  }
+  renderSyncBadge();
 }
 
 document.addEventListener('DOMContentLoaded', init);
 
 /* =========================================================
-   팀 공유 동기화 (Cloudflare Worker + KV)
+   팀 공유 저장 (Cloudflare Worker + KV)
 
-   서버에 무엇을 보낼지는 "마지막으로 서버와 맞춘 시점의 스냅샷"과 현재 목록을
-   비교해서 정한다. 그래서 각 수정 지점마다 따로 표시할 필요가 없다.
+   읽기는 자동, 쓰기는 수동이다. 열면 서버 목록을 받아오고 20초마다 다시 받는다.
+   편집은 이 브라우저에만 쌓이고(state.dirty), [저장하기] 를 눌러야 팀에 반영된다.
+
+   무엇을 보낼지는 "마지막으로 서버와 맞춘 시점의 스냅샷"과 현재 목록을 비교해 정한다.
      - 스냅샷에 없거나 updatedAt 이 달라진 항목 → 보낼 항목
      - 스냅샷에는 있는데 지금 목록에 없는 id → 삭제
    ========================================================= */
 
-const TEAM_STORE = 'loungex.candidates.team.v1';
 const SNAPSHOT_STORE = 'loungex.candidates.snapshot.v2';
 const POLL_MS = 20000;
 
 const sync = {
-  api: '', key: '',
-  status: 'local',   // local | syncing | ok | error | auth | offline
+  api: '',
+  status: 'idle',    // idle | loading | saving | ok | error | offline | local
   message: '', lastSync: null,
-  debounce: null, poller: null, inFlight: false, again: false,
+  poller: null, inFlight: false,
 };
 
-function loadTeamConfig() {
-  let stored = {};
-  try { stored = JSON.parse(localStorage.getItem(TEAM_STORE) || '{}'); } catch (_) { stored = {}; }
-  sync.api = (stored.api || window.LOUNGEX_CANDIDATES_API || '').replace(/\/+$/, '');
-  sync.key = stored.key || '';
-  sync.status = sync.api && sync.key ? 'ok' : 'local';
-}
-function saveTeamConfig(api, key) {
-  sync.api = (api || '').replace(/\/+$/, '');
-  sync.key = key || '';
-  localStorage.setItem(TEAM_STORE, JSON.stringify({ api: sync.api, key: sync.key }));
-}
-function clearTeamConfig() {
-  sync.api = ''; sync.key = ''; sync.status = 'local';
-  localStorage.removeItem(TEAM_STORE);
-  localStorage.removeItem(SNAPSHOT_STORE);
-  stopPolling();
-}
-function teamMode() { return Boolean(sync.api && sync.key); }
+function shared() { return Boolean(sync.api); }
 
 function snapshotLoad() {
   try { return JSON.parse(localStorage.getItem(SNAPSHOT_STORE) || '{}'); } catch (_) { return {}; }
@@ -874,7 +769,7 @@ function snapshotSave(items) {
   localStorage.setItem(SNAPSHOT_STORE, JSON.stringify(snap));
 }
 
-/* localStorage 에만 쓴다. save() 와 달리 서버 동기화를 부르지 않는다. */
+/* localStorage 에만 쓴다. 서버로는 보내지 않는다. */
 function persistLocal() {
   const savedAt = new Date().toISOString();
   try {
@@ -886,32 +781,68 @@ function persistLocal() {
   }
 }
 
-/* 로컬에 쓰고, 팀 공유가 켜져 있으면 서버로도 보낸다 */
+/* 편집 지점에서 부르는 저장. 서버 반영은 [저장하기] 가 할 일이라 여기선 표시만 남긴다. */
 function save() {
   persistLocal();
+  state.dirty = true;
   renderSyncBadge();
-  queueSync();
 }
 
 function apiFetch(path, init) {
-  return fetch(sync.api + path, Object.assign({}, init, {
-    headers: Object.assign({ 'X-Team-Key': sync.key }, (init && init.headers) || {}),
-  }));
+  return fetch(sync.api + path, init);
 }
 
-function queueSync() {
-  if (!teamMode()) { renderSyncBadge(); return; }
-  clearTimeout(sync.debounce);
-  sync.debounce = setTimeout(doSync, 700);
-  sync.status = 'syncing';
-  renderSyncBadge();
-}
-
-async function doSync() {
-  if (!teamMode()) return;
-  if (sync.inFlight) { sync.again = true; return; }
+/* 서버 목록 받아오기. 저장 안 한 편집이 있으면 덮어쓰지 않는다. */
+async function pull(initial) {
+  if (!shared() || sync.inFlight) return;
+  if (state.dirty && !initial) return;
   sync.inFlight = true;
-  sync.status = 'syncing';
+  if (initial) { sync.status = 'loading'; renderSyncBadge(); }
+  try {
+    const r = await apiFetch('/candidates');
+    if (!r.ok) throw new Error('status ' + r.status);
+    const data = await r.json();
+    const incoming = (data.items || []).map(normalize);
+    // 첫 로드인데 서버가 비어 있으면 초기 데이터를 넣을 수 있게 둔다
+    if (initial && !incoming.length) {
+      sync.status = 'ok';
+      sync.lastSync = null;
+      if (!state.items.length) await loadSeed(true);
+      state.dirty = Boolean(state.items.length);
+      renderSyncBadge();
+      return;
+    }
+    if (state.dirty) return;   // 받아오는 사이에 편집이 생겼다
+    state.items = incoming;
+    snapshotSave(incoming);
+    persistLocal();
+    state.dirty = false;
+    sync.status = 'ok';
+    sync.message = '';
+    sync.lastSync = data.savedAt || null;
+    render();
+  } catch (e) {
+    console.error('불러오기 실패', e);
+    sync.status = navigator.onLine ? 'error' : 'offline';
+    sync.message = navigator.onLine ? '서버에 연결하지 못했습니다' : '오프라인';
+  } finally {
+    sync.inFlight = false;
+    renderSyncBadge();
+  }
+}
+
+/* [저장하기] — 바뀐 항목만 올리고, 서버가 병합한 결과를 그대로 받는다 */
+async function saveToServer(manual) {
+  if (!shared()) {
+    persistLocal();
+    state.dirty = false;
+    renderSyncBadge();
+    if (manual) toast('이 브라우저에 저장했습니다 (팀 공유 미설정)');
+    return;
+  }
+  if (sync.inFlight) return;
+  sync.inFlight = true;
+  sync.status = 'saving';
   renderSyncBadge();
 
   const snap = snapshotLoad();
@@ -927,39 +858,38 @@ async function doSync() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: changed, deletes }),
     });
-    if (r.status === 401) {
-      sync.status = 'auth';
-      sync.message = '팀 키가 맞지 않습니다';
-      renderSyncBadge();
-      return;
-    }
     if (!r.ok) throw new Error('status ' + r.status);
     const data = await r.json();
     const incoming = (data.items || []).map(normalize);
-    state.items = incoming;          // 서버가 병합한 결과를 그대로 받는다
+    state.items = incoming;
     snapshotSave(incoming);
     persistLocal();
+    state.dirty = false;
     sync.status = 'ok';
     sync.message = '';
     sync.lastSync = data.savedAt || new Date().toISOString();
     render();
+    if (manual) toast(`팀 전체에 저장했습니다 · 후보지 ${incoming.length}곳`);
   } catch (e) {
-    console.error('동기화 실패', e);
+    console.error('저장 실패', e);
     sync.status = navigator.onLine ? 'error' : 'offline';
-    sync.message = navigator.onLine ? '서버에 연결하지 못했습니다' : '오프라인 — 연결되면 다시 보냅니다';
+    sync.message = navigator.onLine ? '서버에 연결하지 못했습니다' : '오프라인 — 연결되면 다시 시도하세요';
+    if (manual) toast('저장하지 못했습니다. 잠시 후 다시 눌러 주세요');
   } finally {
     sync.inFlight = false;
     renderSyncBadge();
-    if (sync.again) { sync.again = false; queueSync(); }
   }
 }
 
 function startPolling() {
   stopPolling();
-  if (!teamMode()) return;
+  if (!shared()) return;
   sync.poller = setInterval(() => {
-    if (document.visibilityState === 'visible' && !sync.inFlight) doSync();
+    if (document.visibilityState === 'visible') pull(false);
   }, POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pull(false);
+  });
 }
 function stopPolling() {
   if (sync.poller) clearInterval(sync.poller);
@@ -969,435 +899,33 @@ function stopPolling() {
 function renderSyncBadge() {
   const el = $('#lastSaved');
   const label = $('#syncLabel');
-  if (!teamMode()) {
-    label.textContent = '마지막 저장';
-    el.className = 'meta-value clickable';
-    el.title = '이 브라우저에만 저장됩니다. 눌러서 팀 공유를 설정하세요';
+  const btn = $('#saveBtn');
+  const btnText = $('#saveBtnText');
+
+  if (btn) {
+    btn.disabled = !state.dirty || sync.status === 'saving';
+    btn.classList.toggle('ghost', !state.dirty);
+    btnText.textContent = sync.status === 'saving' ? '저장 중…'
+      : state.dirty ? '저장하기' : '저장됨';
+  }
+
+  if (!shared()) {
+    label.textContent = '이 브라우저';
+    el.className = 'meta-value';
+    el.title = '팀 공유 서버가 설정되지 않았습니다 (config.js)';
     el.innerHTML = `<span class="sync-dot"></span>${state.savedAt ? timeStr(state.savedAt) : '저장 내역 없음'}`;
     return;
   }
   const map = {
-    syncing: ['syncing', '동기화 중…'],
-    ok: ['ok', sync.lastSync ? timeStr(sync.lastSync) : '동기화됨'],
-    auth: ['auth', '팀 키 확인 필요'],
+    loading: ['syncing', '불러오는 중…'],
+    saving: ['syncing', '저장 중…'],
+    ok: ['ok', state.dirty ? '저장 안 한 변경 있음' : (sync.lastSync ? timeStr(sync.lastSync) : '동기화됨')],
     error: ['error', '연결 실패'],
     offline: ['error', '오프라인'],
   };
   const [cls, text] = map[sync.status] || ['', '-'];
   label.textContent = '팀 공유';
-  el.className = 'meta-value clickable';
-  el.title = sync.message || '팀 공유 설정 열기';
-  el.innerHTML = `<span class="sync-dot ${cls}"></span>${esc(text)}`;
-}
-
-/* ===== 팀 설정 모달 ===== */
-function openTeamModal() {
-  $('#teamApi').value = sync.api || window.LOUNGEX_CANDIDATES_API || '';
-  $('#teamKey').value = sync.key || '';
-  $('#teamDisconnect').hidden = !teamMode();
-  const st = $('#teamStatus');
-  if (teamMode()) {
-    st.hidden = false;
-    st.className = 'team-status info';
-    st.textContent = `연결됨 · 후보지 ${state.items.length}곳을 팀과 공유 중입니다.`;
-  } else {
-    st.hidden = true;
-  }
-  openModal('teamModal');
-}
-
-async function connectTeam() {
-  const api = $('#teamApi').value.trim().replace(/\/+$/, '');
-  const key = $('#teamKey').value.trim();
-  const st = $('#teamStatus');
-  st.hidden = false;
-  st.className = 'team-status info';
-  st.textContent = '연결 확인 중…';
-  if (!api || !key) {
-    st.className = 'team-status error';
-    st.textContent = '워커 주소와 팀 키를 모두 입력해 주세요.';
-    return;
-  }
-  try {
-    const r = await fetch(api + '/ping', { headers: { 'X-Team-Key': key } });
-    if (r.status === 401) {
-      st.className = 'team-status error';
-      st.textContent = '팀 키가 맞지 않습니다.';
-      return;
-    }
-    if (!r.ok) throw new Error('status ' + r.status);
-    saveTeamConfig(api, key);
-    st.className = 'team-status ok';
-    st.textContent = '연결됐습니다. 지금 목록을 서버와 맞춥니다…';
-    $('#teamDisconnect').hidden = false;
-    await doSync();
-    startPolling();
-    updateTeamSetupDesc();
-    closeModal('teamModal');
-    closeModal('dataModal');
-    toast('팀 공유가 켜졌습니다');
-  } catch (e) {
-    console.error(e);
-    st.className = 'team-status error';
-    st.textContent = '연결하지 못했습니다. 주소가 맞는지, 워커가 배포됐는지 확인해 주세요.';
-  }
-}
-
-function disconnectTeam() {
-  if (!confirm('팀 공유를 끕니다. 지금 목록은 이 브라우저에 그대로 남습니다. 계속할까요?')) return;
-  clearTeamConfig();
-  updateTeamSetupDesc();
-  renderSyncBadge();
-  closeModal('teamModal');
-  toast('팀 공유를 껐습니다');
-}
-
-function updateTeamSetupDesc() {
-  const el = $('#teamSetupDesc');
-  if (!el) return;
-  el.textContent = teamMode()
-    ? `연결됨 · ${sync.api.replace(/^https?:\/\//, '')}`
-    : '워커 주소와 팀 키를 입력하면 팀원과 같은 데이터를 봅니다';
-}
-
-/* =========================================================
-   구글 시트 · 엑셀 가져오기
-   ========================================================= */
-
-/* kw: 머리글에 이 말이 들어 있으면 자동으로 연결한다 (앞에 있을수록 우선) */
-const SHEET_FIELDS = [
-  { key: 'name',         label: '건물명',      req: true, type: 'text',   kw: ['건물명', '후보지명', '후보지', '물건명', '이름', 'name'] },
-  { key: 'kind',         label: '구분',        type: 'kind',     kw: ['구분', 'kind'] },
-  { key: 'channel',      label: '경로',        type: 'text',     kw: ['경로', 'channel'] },
-  { key: 'owner',        label: '담당자',      type: 'text',     kw: ['담당자', '담당', 'owner'] },
-  { key: 'location',     label: '위치',        type: 'location', kw: ['위치', '주소', '소재지', 'location', 'address'] },
-  { key: 'status',       label: '결과',        type: 'status',   kw: ['결과', '진행상태', '상태', '단계', 'status'] },
-  { key: 'floor',        label: '층수',        type: 'text',     kw: ['층수', '층', 'floor'] },
-  { key: 'area',         label: '전용 면적',   type: 'number',   kw: ['전용면적', '전용', '면적', '평수', 'area'] },
-  { key: 'deposit',      label: '보증금',      type: 'money',    kw: ['보증금', '보증', 'deposit'] },
-  { key: 'rent',         label: '고정 임차료', type: 'money',    kw: ['고정임차료', '임차료', '월세', '임대료', 'rent'] },
-  { key: 'feeRate',      label: '수수료율',    type: 'percent',  kw: ['수수료율', '수수료', 'fee'] },
-  { key: 'maintenance',  label: '건물 관리비', type: 'money',    kw: ['건물관리비', '관리비', 'maintenance'] },
-  { key: 'premium',      label: '권리금',      type: 'money',    kw: ['권리금', '권리', 'premium'] },
-  { key: 'pnl',          label: '예상손익',    type: 'text',     kw: ['예상손익', '손익', 'pnl'] },
-  { key: 'availableAt',  label: '계약 가능시기', type: 'text',   kw: ['계약가능시기', '가능시기', '입점시기', '시기'] },
-  { key: 'memo',         label: '기타',        type: 'text',     kw: ['기타', '메모', '비고', '특이사항', 'memo', 'note'] },
-  { key: 'contractNote', label: '계약 완료',   type: 'text',     kw: ['계약완료', '계약', 'contract'] },
-  { key: 'region',       label: '지역',        type: 'text',     kw: ['지역', '상권', '권역', 'region'] },
-  { key: 'termsNote',    label: '조건 비고',   type: 'text',     kw: ['조건비고', '조건'] },
-];
-
-const sheetState = { headers: [], rows: [], mapping: {} };
-
-/* 지역 열이 없는 시트가 많아서, 건물명·위치에서 구/시를 뽑아 채워 준다 */
-const REGION_KW = [
-  ['여의도', '서울 영등포구'], ['문래', '서울 영등포구'], ['강남', '서울 강남구'], ['선릉', '서울 강남구'],
-  ['한티역', '서울 강남구'], ['압구정', '서울 강남구'], ['삼성역', '서울 강남구'], ['삼성동', '서울 강남구'],
-  ['테헤란', '서울 강남구'], ['역삼', '서울 강남구'], ['대치', '서울 강남구'], ['교대역', '서울 서초구'],
-  ['서초', '서울 서초구'], ['서래마을', '서울 서초구'], ['염곡', '서울 서초구'], ['종각', '서울 종로구'],
-  ['종로', '서울 종로구'], ['안국', '서울 종로구'], ['광화문', '서울 종로구'], ['공평', '서울 종로구'],
-  ['인사동', '서울 종로구'], ['와룡동', '서울 종로구'], ['을지', '서울 중구'], ['시청역', '서울 중구'],
-  ['충무로', '서울 중구'], ['서울역', '서울 중구'], ['서울스퀘어', '서울 중구'], ['두타', '서울 중구'],
-  ['신당', '서울 중구'], ['마포', '서울 마포구'], ['합정', '서울 마포구'], ['상암', '서울 마포구'],
-  ['홍대', '서울 마포구'], ['용산', '서울 용산구'], ['남영', '서울 용산구'], ['원효로', '서울 용산구'],
-  ['잠실', '서울 송파구'], ['가락', '서울 송파구'], ['천호', '서울 강동구'], ['건대', '서울 광진구'],
-  ['뚝섬', '서울 성동구'], ['성수', '서울 성동구'], ['서울숲', '서울 성동구'], ['사근동', '서울 성동구'],
-  ['답십리', '서울 동대문구'], ['청량리', '서울 동대문구'], ['노량진', '서울 동작구'], ['구로', '서울 구로구'],
-  ['충정로', '서울 서대문구'], ['마곡', '서울 강서구'], ['광운대', '서울 노원구'], ['신림', '서울 관악구'],
-  ['양평', '경기 양평군'], ['일산', '경기 고양시'], ['구리', '경기 구리시'], ['광명', '경기 광명시'],
-  ['백운호수', '경기 의왕시'], ['마시안', '인천 중구'], ['해운대', '부산 해운대구'],
-];
-function regionOf(text) {
-  const t = String(text || '');
-  const pats = [
-    [/서울(?:특별시|시)?\s*([가-힣]{1,4}구)/, '서울 '],
-    [/경기(?:도)?\s*([가-힣]{1,5}시)/, '경기 '],
-    [/부산(?:광역시)?\s*([가-힣]{1,4}구)/, '부산 '],
-    [/인천(?:광역시)?\s*([가-힣]{1,4}구)/, '인천 '],
-  ];
-  for (const [re, prefix] of pats) {
-    const m = t.match(re);
-    if (m) return prefix + m[1];
-  }
-  for (const [kw, reg] of REGION_KW) if (t.includes(kw)) return reg;
-  return '';
-}
-
-/* 따옴표 안의 구분자·줄바꿈까지 처리하는 CSV/TSV 파서 */
-function parseDelimited(text) {
-  const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const head = clean.split('\n')[0] || '';
-  const delim = (head.match(/\t/g) || []).length > (head.match(/,/g) || []).length ? '\t' : ',';
-  const rows = [];
-  let row = [], cell = '', quoted = false;
-  for (let i = 0; i < clean.length; i++) {
-    const c = clean[i];
-    if (quoted) {
-      if (c === '"') {
-        if (clean[i + 1] === '"') { cell += '"'; i++; }
-        else quoted = false;
-      } else cell += c;
-    } else if (c === '"') quoted = true;
-    else if (c === delim) { row.push(cell); cell = ''; }
-    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
-    else cell += c;
-  }
-  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
-  return rows.map((r) => r.map((v) => v.trim())).filter((r) => r.some((v) => v !== ''));
-}
-
-let xlsxLoading = null;
-function loadXlsx() {
-  if (window.XLSX) return Promise.resolve(window.XLSX);
-  if (xlsxLoading) return xlsxLoading;
-  xlsxLoading = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-    s.onload = () => resolve(window.XLSX);
-    s.onerror = () => reject(new Error('XLSX 로더를 불러오지 못했습니다'));
-    document.head.appendChild(s);
-  });
-  return xlsxLoading;
-}
-
-async function readSheetFile(file) {
-  const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (ext === 'xlsx' || ext === 'xls') {
-    const XLSX = await loadXlsx();
-    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
-    return aoa.map((r) => r.map((v) => String(v ?? '').trim())).filter((r) => r.some((v) => v !== ''));
-  }
-  return parseDelimited(await file.text());
-}
-
-/* 시트 위쪽에 제목·단위 표기 줄이 있는 경우가 많다. 머리글다운 줄을 찾아 거기서부터 읽는다. */
-function findHeaderRow(rows) {
-  const hint = /건물명|후보지|담당자|보증금|결과|위치/;
-  for (let i = 0; i < Math.min(rows.length, 8); i++) {
-    const filled = rows[i].filter((c) => c !== '').length;
-    if (filled >= 4 && rows[i].some((c) => hint.test(c))) return i;
-  }
-  return 0;
-}
-
-function startMapping(rows) {
-  if (!rows || rows.length < 2) {
-    toast('머리글 한 줄과 데이터가 최소 한 줄은 있어야 합니다');
-    return;
-  }
-  const h = findHeaderRow(rows);
-  sheetState.headers = rows[h];
-  sheetState.rows = rows.slice(h + 1);
-  sheetState.mapping = guessMapping(sheetState.headers);
-  renderMapping();
-  $('#sheetStep1').hidden = true;
-  $('#sheetStep2').hidden = false;
-  openModal('sheetModal');
-  icons();
-}
-
-function guessMapping(headers) {
-  const norm = headers.map((h) => String(h).toLowerCase().replace(/[\s()（）·.,_/-]/g, ''));
-  const used = new Set();
-  const map = {};
-  SHEET_FIELDS.forEach((f) => {
-    for (const kw of f.kw) {
-      const k = kw.toLowerCase();
-      const idx = norm.findIndex((h, i) => !used.has(i) && h.includes(k));
-      if (idx >= 0) { map[f.key] = idx; used.add(idx); return; }
-    }
-  });
-  return map;
-}
-
-function renderMapping() {
-  const matched = Object.keys(sheetState.mapping).length;
-  $('#mapSummary').innerHTML =
-    `<b>${sheetState.rows.length}행</b> · 열 ${sheetState.headers.length}개를 읽었습니다. ` +
-    `그중 <b>${matched}개</b>를 자동으로 연결했습니다. 틀린 곳만 바꾸고 가져오세요.`;
-
-  const opts = (sel) =>
-    '<option value="">— 없음 —</option>' +
-    sheetState.headers.map((h, i) =>
-      `<option value="${i}"${sel === i ? ' selected' : ''}>${esc(h || '(빈 머리글 ' + (i + 1) + ')')}</option>`
-    ).join('');
-
-  $('#mapGrid').innerHTML = SHEET_FIELDS.map((f) => {
-    const sel = sheetState.mapping[f.key];
-    const has = sel !== undefined && sel !== null;
-    return `
-      <div class="map-row">
-        <label for="map_${f.key}">${esc(f.label)}${f.req ? ' <span class="req">*</span>' : ''}</label>
-        <select id="map_${f.key}" data-field="${f.key}" class="${has ? 'mapped' : ''}">${opts(has ? Number(sel) : '')}</select>
-      </div>`;
-  }).join('');
-
-  $('#mapGrid').querySelectorAll('select').forEach((s) => {
-    s.addEventListener('change', () => {
-      const v = s.value;
-      if (v === '') delete sheetState.mapping[s.dataset.field];
-      else sheetState.mapping[s.dataset.field] = Number(v);
-      s.classList.toggle('mapped', v !== '');
-    });
-  });
-}
-
-/* 시트 금액은 천원 단위. "1억5000만" 처럼 적혀 있어도 천원으로 환산한다. */
-function parseMoney(v) {
-  const s = String(v ?? '').replace(/\s/g, '');
-  if (!s) return 0;
-  const eok = s.match(/([\d.]+)억/);
-  const man = s.match(/([\d,.]+)만/);
-  if (eok || man) {
-    const a = eok ? parseFloat(eok[1]) * 100000 : 0;
-    const b = man ? parseFloat(man[1].replace(/,/g, '')) * 10 : 0;
-    return Math.round(a + b);
-  }
-  const n = parseFloat(s.replace(/[^\d.-]/g, ''));
-  return Number.isFinite(n) ? Math.round(n) : 0;
-}
-function parseStatus(v) {
-  const s = String(v ?? '').trim();
-  if (!s) return 'review';
-  const flat = s.replace(/\s/g, '');
-  const hit = STATUSES.find((x) => x.label === flat || x.key === s.toLowerCase());
-  if (hit) return hit.key;
-  if (/제안|의향|진행|협의|소개/.test(flat)) return 'progress';
-  if (/완료|계약/.test(flat)) return 'signed';
-  return 'review';   // 드랍·기타 등 나머지는 전부 후보지
-}
-function parseKind(v) {
-  const s = String(v ?? '').trim();
-  if (!s) return '';
-  if (s.startsWith('직')) return '직영';
-  if (s.startsWith('가')) return '가맹';
-  if (s.startsWith('베')) return '베이커리';
-  return '';
-}
-
-function applyImport() {
-  const map = sheetState.mapping;
-  if (map.name === undefined) { toast('건물명 열은 반드시 연결해야 합니다'); return; }
-
-  const upsert = $('#mapUpsert').checked;
-  const byName = new Map(state.items.map((i) => [i.name.trim(), i]));
-  const now = new Date().toISOString();
-  let added = 0, updated = 0, skipped = 0;
-
-  sheetState.rows.forEach((row) => {
-    const name = String(row[map.name] ?? '').trim().replace(/\s{2,}/g, ' ');
-    if (!name) { skipped++; return; }
-
-    const data = { name };
-    SHEET_FIELDS.forEach((f) => {
-      if (f.key === 'name' || map[f.key] === undefined) return;
-      const raw = row[map[f.key]];
-      if (raw === undefined || String(raw).trim() === '') return;
-      const s = String(raw).trim();
-      if (f.type === 'money') data[f.key] = parseMoney(s);
-      else if (f.type === 'number') { const n = parseFloat(s.replace(/[^\d.]/g, '')); data[f.key] = Number.isFinite(n) ? n : 0; }
-      else if (f.type === 'percent') { const n = parseFloat(s.replace(/[^\d.]/g, '')); data[f.key] = Number.isFinite(n) ? n : 0; }
-      else if (f.type === 'status') data[f.key] = parseStatus(s);
-      else if (f.type === 'kind') data[f.key] = parseKind(s);
-      else if (f.type === 'location') {
-        // 위치 칸에는 링크가 들어 있기도 하고 주소가 적혀 있기도 하다
-        if (/^https?:\/\//.test(s)) data.naverUrl = s;
-        else data.address = s.replace(/\s*[-–]\s*네이버\s*지도\s*$/, '').replace(/\s*검색\s*$/, '').trim();
-      }
-      else data[f.key] = s.replace(/\s{2,}/g, ' ');
-    });
-    if (data.naverUrl) data.placeId = naverPlaceId(data.naverUrl);
-    if (!data.region) data.region = regionOf(name + ' ' + (data.address || ''));
-    data.updatedAt = now;
-
-    const existing = upsert ? byName.get(name) : null;
-    if (existing) {
-      Object.assign(existing, normalize(Object.assign({}, existing, data)));
-      updated++;
-    } else {
-      const item = normalize(Object.assign({ createdAt: now }, data));
-      state.items.unshift(item);
-      byName.set(name, item);
-      added++;
-    }
-  });
-
-  save();
-  render();
-  closeModal('sheetModal');
-  closeModal('dataModal');
-  toast(`${added}곳 추가 · ${updated}곳 갱신${skipped ? ` · ${skipped}행 건너뜀` : ''}`);
-}
-
-function openSheetModal() {
-  $('#sheetStep1').hidden = false;
-  $('#sheetStep2').hidden = true;
-  $('#sheetPaste').value = '';
-  $('#sheetUrl').value = '';
-  openModal('sheetModal');
-  icons();
-}
-
-async function loadSheetUrl() {
-  const url = $('#sheetUrl').value.trim();
-  if (!url) { toast('시트 주소를 입력해 주세요'); return; }
-  toast('시트를 불러오는 중…');
-  try {
-    // 게시된 CSV 는 대개 브라우저에서 바로 받아진다. 막히면 워커로 우회한다.
-    let text;
-    try {
-      const direct = await fetch(url);
-      if (!direct.ok) throw new Error('status ' + direct.status);
-      text = await direct.text();
-    } catch (_) {
-      if (!teamMode()) throw new Error('브라우저에서 직접 받을 수 없습니다. 팀 공유 설정을 먼저 하거나 파일로 올려 주세요.');
-      const r = await apiFetch('/sheet?url=' + encodeURIComponent(url));
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.hint || err.error || '워커가 시트를 받지 못했습니다');
-      }
-      text = await r.text();
-    }
-    if (text.trim().startsWith('<')) throw new Error('CSV 가 아니라 HTML 이 왔습니다. "웹에 게시"한 CSV 주소인지 확인해 주세요.');
-    startMapping(parseDelimited(text));
-  } catch (e) {
-    console.error(e);
-    toast(e.message || '시트를 불러오지 못했습니다');
-  }
-}
-
-function bindSheetUi() {
-  $('#importSheet').addEventListener('click', openSheetModal);
-  $('#sheetPickFile').addEventListener('click', () => $('#sheetFile').click());
-  $('#sheetFile').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      startMapping(await readSheetFile(file));
-    } catch (err) {
-      console.error(err);
-      toast('파일을 읽지 못했습니다');
-    }
-  });
-  $('#sheetUrlLoad').addEventListener('click', loadSheetUrl);
-  $('#sheetPasteLoad').addEventListener('click', () => {
-    const text = $('#sheetPaste').value;
-    if (!text.trim()) { toast('붙여넣은 내용이 없습니다'); return; }
-    startMapping(parseDelimited(text));
-  });
-  $('#mapBack').addEventListener('click', () => { $('#sheetStep2').hidden = true; $('#sheetStep1').hidden = false; });
-  $('#mapConfirm').addEventListener('click', applyImport);
-
-  $('#teamSetup').addEventListener('click', openTeamModal);
-  $('#teamConnect').addEventListener('click', connectTeam);
-  $('#teamDisconnect').addEventListener('click', disconnectTeam);
-  $('#lastSaved').addEventListener('click', openTeamModal);
-
-  window.addEventListener('online', () => { if (teamMode()) doSync(); });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && teamMode()) doSync();
-  });
+  el.className = 'meta-value';
+  el.title = sync.message || '팀 전체가 같은 목록을 봅니다';
+  el.innerHTML = `<span class="sync-dot ${state.dirty && sync.status === 'ok' ? 'auth' : cls}"></span>${esc(text)}`;
 }
