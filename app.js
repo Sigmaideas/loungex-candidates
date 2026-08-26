@@ -215,7 +215,7 @@ function renderKpis() {
     kpiCard({ accent: true, icon: 'map-pin', label: '전체 후보지', value: items.length, unit: '곳', sub: kinds }),
     kpiCard({ icon: 'search-check', label: '후보지', value: by('review'), unit: '곳', sub: `기타 ${by('etc')}곳` }),
     kpiCard({ icon: 'activity', label: '진행중', value: by('progress'), unit: '곳', sub: `전체의 ${items.length ? Math.round((by('progress') / items.length) * 100) : 0}%` }),
-    kpiCard({ icon: 'circle-check', label: '계약완료', value: by('signed'), unit: '곳', sub: `진행중 포함 ${by('progress') + by('signed')}곳` }),
+    kpiCard({ icon: 'circle-check', label: '계약완료', value: by('signed'), unit: '곳', sub: `파이프라인 ${by('progress') + by('signed')}곳` }),
   ].join('');
 }
 
