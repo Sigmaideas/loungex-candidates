@@ -360,10 +360,8 @@ tbody tr:hover .row-actions { opacity: 1; }
   font-size: 11px; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
 }
 .tag.st-review   { background: var(--accent-soft); color: var(--accent); }
-.tag.st-proposed { background: var(--violet-soft); color: var(--violet); }
 .tag.st-progress { background: var(--warn-soft); color: var(--warn); }
 .tag.st-signed   { background: var(--positive-soft); color: var(--positive); }
-.tag.st-drop     { background: var(--negative-soft); color: var(--negative); }
 .tag.st-etc      { background: var(--surface-2); color: var(--text-dim); }
 
 /* 구분 — 직영 / 가맹 / 베이커리 */

@@ -12,15 +12,13 @@ const SEED_URL = 'data/candidates.json';
 
 /* 시트의 "결과" 열 값. key 는 저장값이라 바꾸면 기존 데이터가 깨진다. */
 const STATUSES = [
-  { key: 'review',   label: '검토중',   cls: 'st-review',   color: '#4263eb' },
-  { key: 'proposed', label: '제안완료', cls: 'st-proposed', color: '#7048e8' },
+  { key: 'review',   label: '후보지',   cls: 'st-review',   color: '#4263eb' },
   { key: 'progress', label: '진행중',   cls: 'st-progress', color: '#f08c00' },
   { key: 'signed',   label: '계약완료', cls: 'st-signed',   color: '#2f9e44' },
-  { key: 'drop',     label: '드랍',     cls: 'st-drop',     color: '#e03131' },
   { key: 'etc',      label: '기타',     cls: 'st-etc',      color: '#adb5bd' },
 ];
 const STATUS_MAP = Object.fromEntries(STATUSES.map((s) => [s.key, s]));
-const ACTIVE_KEYS = ['proposed', 'progress'];
+const ACTIVE_KEYS = ['progress'];
 const KINDS = ['직영', '가맹', '베이커리'];
 
 const state = {
@@ -142,6 +140,9 @@ function normalize(o) {
     },
     o
   );
+  // 제안완료·드랍 폐지. 이미 저장된 값은 옮겨 받는다
+  if (item.status === 'proposed') item.status = 'progress';
+  if (item.status === 'drop') item.status = 'etc';
   if (!STATUS_MAP[item.status]) item.status = 'review';
   // 정렬·표시에 쓰는 파생값
   item.initial = num(item.deposit) + num(item.premium);
@@ -212,9 +213,9 @@ function renderKpis() {
 
   $('#kpiRow').innerHTML = [
     kpiCard({ accent: true, icon: 'map-pin', label: '전체 후보지', value: items.length, unit: '곳', sub: kinds }),
-    kpiCard({ icon: 'search-check', label: '검토중', value: by('review'), unit: '곳', sub: `기타 ${by('etc')}곳` }),
-    kpiCard({ icon: 'activity', label: '진행중', value: by('progress') + by('proposed'), unit: '곳', sub: `제안완료 ${by('proposed')}곳 포함` }),
-    kpiCard({ icon: 'circle-slash', label: '드랍', value: by('drop'), unit: '곳', sub: `계약완료 ${by('signed')}곳` }),
+    kpiCard({ icon: 'search-check', label: '후보지', value: by('review'), unit: '곳', sub: `기타 ${by('etc')}곳` }),
+    kpiCard({ icon: 'activity', label: '진행중', value: by('progress'), unit: '곳', sub: `전체의 ${items.length ? Math.round((by('progress') / items.length) * 100) : 0}%` }),
+    kpiCard({ icon: 'circle-check', label: '계약완료', value: by('signed'), unit: '곳', sub: `진행중 포함 ${by('progress') + by('signed')}곳` }),
   ].join('');
 }
 
@@ -346,7 +347,8 @@ function renderBoard() {
 
 function renderStats() {
   const items = state.items;
-  const alive = items.filter((i) => i.status !== 'drop');
+  // 기타(옛 드랍 포함)는 평균·합계에서 뺀다
+  const alive = items.filter((i) => i.status !== 'etc');
   const areas = alive.filter((i) => num(i.area) > 0);
   const avgArea = areas.length ? Math.round(areas.reduce((s, i) => s + num(i.area), 0) / areas.length) : 0;
   const perP = alive.filter((i) => i.rentPerPyeong > 0);
@@ -1264,11 +1266,10 @@ function parseStatus(v) {
   const flat = s.replace(/\s/g, '');
   const hit = STATUSES.find((x) => x.label === flat || x.key === s.toLowerCase());
   if (hit) return hit.key;
-  if (/드랍|드롭|종결|불가/.test(flat)) return 'drop';
-  if (/제안|의향/.test(flat)) return 'proposed';
-  if (/진행|협의|소개/.test(flat)) return 'progress';
+  if (/드랍|드롭|종결|불가/.test(flat)) return 'etc';
+  if (/제안|의향|진행|협의|소개/.test(flat)) return 'progress';
   if (/완료|계약/.test(flat)) return 'signed';
-  if (/검토/.test(flat)) return 'review';
+  if (/검토|후보/.test(flat)) return 'review';
   return 'etc';
 }
 function parseKind(v) {
