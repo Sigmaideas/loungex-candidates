@@ -7,3 +7,21 @@
  * 배포·재배포 방법은 worker/README.md 참고.
  */
 window.LOUNGEX_CANDIDATES_API = 'https://loungex-candidates-api.sigmaidea.workers.dev';
+
+/**
+ * 계약 화면에 뜨는 계약서 목록
+ *
+ * url 에 구글 드라이브 공유 링크를 붙이면 다운로드 박스가 활성화된다.
+ * 비워 두면 "링크 미등록" 으로 회색 처리된다(칸은 그대로 보인다).
+ *
+ * 드라이브에서 [공유] → [링크가 있는 모든 사용자] 또는 회사 계정으로 제한한 뒤
+ * 링크를 복사해 넣으면 된다. 권한은 드라이브 쪽 설정을 그대로 따른다.
+ */
+window.LOUNGEX_CONTRACTS = [
+  { name: '임대차 계약서',        desc: '점포 임대차 표준계약서',            url: '' },
+  { name: '권리금 계약서',        desc: '상가건물 권리금 표준계약서',        url: '' },
+  { name: '가맹 계약서',          desc: '가맹점 개설 · 운영 조건',           url: '' },
+  { name: '위탁운영 계약서',      desc: '위탁 범위 · 정산 기준',             url: '' },
+  { name: '비밀유지 계약서(NDA)', desc: '출점 협의 전 교환',                 url: '' },
+  { name: '인테리어 공사 계약서', desc: '시공 범위 · 일정 · 대금 지급',      url: '' },
+];

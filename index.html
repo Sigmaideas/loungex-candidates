@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <!-- ?v= 는 캐시 버스팅. GitHub Pages 가 max-age=600 이라 파라미터를 안 바꾸면
        코드를 고쳐도 브라우저가 10분간 옛 파일을 계속 쓴다. app.js/style.css 수정 시 함께 올릴 것 -->
-  <link rel="stylesheet" href="style.css?v=28" />
+  <link rel="stylesheet" href="style.css?v=29" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <!-- 카카오맵. autoload=false 라 kakao.maps.load() 로 직접 켠다.
@@ -174,34 +174,14 @@
       </div>
       <!-- ===== 계약 ===== -->
       <div class="view" id="contractView" hidden>
-        <section class="kpi-row" id="contractKpiRow"></section>
-        <section class="card" id="contractCard">
+        <section class="card">
           <div class="card-head">
-            <h2><i data-lucide="file-text" class="head-icon"></i>계약완료 후보지</h2>
+            <h2><i data-lucide="file-text" class="head-icon"></i>계약서</h2>
             <span class="hint" id="contractHint"></span>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>타입</th>
-                  <th>후보지</th>
-                  <th>지역</th>
-                  <th>층</th>
-                  <th class="num">면적</th>
-                  <th class="num">보증금</th>
-                  <th class="num">임차료</th>
-                  <th class="num">관리비</th>
-                  <th class="num">권리금</th>
-                  <th class="num">초기투자</th>
-                  <th>가능시기</th>
-                </tr>
-              </thead>
-              <tbody id="contractBody"></tbody>
-            </table>
-          </div>
+          <div class="doc-grid" id="contractDocs"></div>
+          <p class="map-note" id="contractNote"></p>
         </section>
-        <div id="contractEmpty" hidden></div>
       </div>
 
     </main>
@@ -339,7 +319,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="config.js?v=28"></script>
-  <script src="app.js?v=28"></script>
+  <script src="config.js?v=29"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

@@ -207,7 +207,6 @@ function render() {
   renderFilters();
   renderTable();
   renderBoard();
-  if (state.view === 'contract') renderContract();
   if (state.view === 'map') renderMap();
   if (state.view === 'stats') renderStats();
   icons();
@@ -489,69 +488,39 @@ function openMapPopup(it, pos) {
 }
 
 /* =========================================================
-   계약
+   계약서
 
-   상태가 '계약완료' 인 후보지만 모은다. 별도 데이터가 아니라 같은 목록을
-   상태로 걸러 보여주는 화면이라, 여기 뜨게 하려면 후보지의 상태를 바꾸면 된다.
+   목록은 config.js 의 LOUNGEX_CONTRACTS 를 그대로 읽는다. url 이 비어 있으면
+   칸은 보여 주되 누를 수 없게 둔다 — 칸 자체를 감추면 "그 문서가 없는 건지
+   링크만 안 걸린 건지" 구분이 안 된다.
+
+   파일은 구글 드라이브에 있고 권한도 드라이브를 따른다. 그래서 이 화면은
+   링크를 새 탭으로 열어 줄 뿐, 접근 권한을 따로 판단하지 않는다.
    ========================================================= */
 function renderContract() {
-  const rows = state.items.filter((i) => i.status === 'signed');
-  const sum = (k) => rows.reduce((t, i) => t + num(i[k]), 0);
-  /* 값이 있는 곳만 나눈다. 0(미입력)까지 세면 평균이 실제보다 낮아진다. */
-  const avg = (k) => {
-    const has = rows.filter((i) => num(i[k]) > 0);
-    return has.length ? Math.round(has.reduce((t, i) => t + num(i[k]), 0) / has.length) : 0;
-  };
-  const withVal = (k) => rows.filter((i) => num(i[k]) > 0).length;
+  const docs = Array.isArray(window.LOUNGEX_CONTRACTS) ? window.LOUNGEX_CONTRACTS : [];
+  const ready = docs.filter((d) => d && d.url);
 
-  $('#contractKpiRow').innerHTML = [
-    kpiCard({ accent: true, icon: 'file-text', label: '계약완료', value: rows.length, unit: '곳',
-              sub: rows.length ? `협의중 ${state.items.filter((i) => i.status === 'progress').length}곳` : '아직 없습니다' }),
-    kpiCard({ icon: 'piggy-bank', label: '보증금 평균', value: money(avg('deposit')), unit: '',
-              sub: `입력된 ${withVal('deposit')}곳 기준` }),
-    kpiCard({ icon: 'wallet', label: '평균 월 임차료', value: money(avg('rent')), unit: '',
-              sub: `고정 임차료 ${withVal('rent')}곳 기준 · 수수료 방식 제외` }),
-    kpiCard({ icon: 'coins', label: '초기투자 합계', value: money(sum('initial')), unit: '', sub: '보증금 + 권리금' }),
-  ].join('');
+  $('#contractDocs').innerHTML = docs.length
+    ? docs.map((d) => {
+        const has = Boolean(d.url);
+        const inner = `
+          <span class="doc-icon"><i data-lucide="${has ? 'file-down' : 'file-clock'}"></i></span>
+          <span class="doc-text">
+            <span class="doc-name">${esc(d.name || '이름 없음')}</span>
+            <span class="doc-desc">${esc(has ? (d.desc || '') : '링크 미등록')}</span>
+          </span>
+          ${has ? '<i data-lucide="external-link" class="doc-go"></i>' : ''}`;
+        return has
+          ? `<a class="doc-card" href="${esc(d.url)}" target="_blank" rel="noopener">${inner}</a>`
+          : `<div class="doc-card empty">${inner}</div>`;
+      }).join('')
+    : '<div class="map-fail">등록된 계약서가 없습니다.</div>';
 
-  const empty = $('#contractEmpty');
-  $('#contractCard').hidden = !rows.length;
-  empty.hidden = Boolean(rows.length);
-  if (!rows.length) {
-    empty.innerHTML = `
-      <div class="empty">
-        <div class="ei"><i data-lucide="file-text"></i></div>
-        <h3>계약완료된 후보지가 없습니다</h3>
-        <p>후보지의 <b>상태</b>를 <b>계약완료</b>로 바꾸면 여기에 모입니다.</p>
-        <div class="empty-actions">
-          <button class="btn ghost" id="contractGoList"><i data-lucide="list"></i><span>후보지 목록으로</span></button>
-        </div>
-      </div>`;
-    $('#contractGoList').onclick = () => setView('list');
-    $('#contractHint').textContent = '';
-    return;
-  }
-
-  $('#contractHint').textContent = `${rows.length}곳`;
-  $('#contractBody').innerHTML = sorted(rows).map((it) => `
-    <tr data-id="${it.id}">
-      <td>${typeTag(it.type)}</td>
-      <td class="cell-name">
-        <div class="cand-name" data-act="detail">${esc(it.name)}
-          <a class="map-link" href="${esc(mapUrl(it))}" target="_blank" rel="noopener" title="네이버 지도에서 보기" data-act="map"><i data-lucide="external-link"></i></a>
-        </div>
-        ${it.address ? `<div class="cand-addr">${esc(it.address)}</div>` : ''}
-      </td>
-      <td>${esc(it.region || '-')}</td>
-      <td>${esc(it.floor || '-')}</td>
-      <td class="num">${num(it.area) ? num(it.area).toLocaleString() + '평' : '-'}</td>
-      <td class="num">${money(it.deposit)}</td>
-      <td class="num">${esc(rentLabel(it))}</td>
-      <td class="num">${money(it.maintenance)}</td>
-      <td class="num">${money(it.premium)}</td>
-      <td class="num strong">${money(it.initial)}</td>
-      <td>${esc(it.availableAt || '-')}</td>
-    </tr>`).join('');
+  $('#contractHint').textContent = docs.length ? `${ready.length} / ${docs.length}개 등록` : '';
+  $('#contractNote').textContent = ready.length < docs.length
+    ? '링크가 없는 문서는 회색으로 둡니다. 구글 드라이브 공유 링크를 config.js 의 LOUNGEX_CONTRACTS 에 넣으면 활성화됩니다.'
+    : '파일은 구글 드라이브에 있습니다. 열리지 않으면 드라이브 접근 권한을 확인해 주세요.';
 }
 
 function renderStats() {
@@ -901,12 +870,6 @@ async function init() {
   });
 
   // 행 액션
-  $('#contractBody').addEventListener('click', (e) => {
-    const tr = e.target.closest('tr[data-id]');
-    if (!tr || e.target.closest('[data-act="map"]')) return;
-    openDetail(tr.dataset.id);
-  });
-
   $('#tableBody').addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
