@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <!-- ?v= 는 캐시 버스팅. GitHub Pages 가 max-age=600 이라 파라미터를 안 바꾸면
        코드를 고쳐도 브라우저가 10분간 옛 파일을 계속 쓴다. app.js/style.css 수정 시 함께 올릴 것 -->
-  <link rel="stylesheet" href="style.css?v=9" />
+  <link rel="stylesheet" href="style.css?v=10" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
@@ -73,7 +73,7 @@
             </div>
             <div class="chips" id="statusChips"></div>
             <select class="select" id="regionFilter"><option value="">전체 지역</option></select>
-            <select class="select" id="availableFilter"><option value="">전체 가능시기</option></select>
+            <select class="select" id="typeFilter"><option value="">전체 타입</option></select>
           </div>
         </section>
 
@@ -87,6 +87,7 @@
               <thead>
                 <tr>
                   <th data-sort="kind">구분</th>
+                  <th data-sort="type">타입</th>
                   <th data-sort="name">후보지</th>
                   <th data-sort="region">지역</th>
                   <th data-sort="floor">층</th>
@@ -172,6 +173,11 @@
               <option value="가맹">가맹</option>
               <option value="베이커리">베이커리</option>
             </select>
+          </div>
+
+          <div class="field">
+            <label for="f_type">타입 <span class="req">*</span></label>
+            <select id="f_type" name="type" required></select>
           </div>
 
           <div class="field">
@@ -285,7 +291,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="config.js?v=9"></script>
-  <script src="app.js?v=9"></script>
+  <script src="config.js?v=10"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
