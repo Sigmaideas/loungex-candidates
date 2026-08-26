@@ -3,7 +3,7 @@
 라운지엑스 신규 출점 후보지를 등록·추적하는 내부용 대시보드.
 [loungex-brand](https://sigmaideas.github.io/loungex-brand/) 와 같은 디자인 시스템(Pretendard · 사이드바 + 카드 레이아웃 · #4263eb 액센트)을 씁니다.
 
-**→ https://sigmaideas.github.io/loungex-candidate/**
+**→ https://sigmaideas.github.io/loungex-candidates/**
 
 ![미리보기](preview.png)
 
