@@ -497,12 +497,20 @@ function openMapPopup(it, pos) {
 function renderContract() {
   const rows = state.items.filter((i) => i.status === 'signed');
   const sum = (k) => rows.reduce((t, i) => t + num(i[k]), 0);
+  /* 값이 있는 곳만 나눈다. 0(미입력)까지 세면 평균이 실제보다 낮아진다. */
+  const avg = (k) => {
+    const has = rows.filter((i) => num(i[k]) > 0);
+    return has.length ? Math.round(has.reduce((t, i) => t + num(i[k]), 0) / has.length) : 0;
+  };
+  const withVal = (k) => rows.filter((i) => num(i[k]) > 0).length;
 
   $('#contractKpiRow').innerHTML = [
     kpiCard({ accent: true, icon: 'file-text', label: '계약완료', value: rows.length, unit: '곳',
               sub: rows.length ? `협의중 ${state.items.filter((i) => i.status === 'progress').length}곳` : '아직 없습니다' }),
-    kpiCard({ icon: 'piggy-bank', label: '보증금 합계', value: money(sum('deposit')), unit: '' }),
-    kpiCard({ icon: 'wallet', label: '월 임차료 합계', value: money(sum('rent')), unit: '', sub: '수수료 방식 미포함' }),
+    kpiCard({ icon: 'piggy-bank', label: '보증금 평균', value: money(avg('deposit')), unit: '',
+              sub: `입력된 ${withVal('deposit')}곳 기준` }),
+    kpiCard({ icon: 'wallet', label: '평균 월 임차료', value: money(avg('rent')), unit: '',
+              sub: `고정 임차료 ${withVal('rent')}곳 기준 · 수수료 방식 제외` }),
     kpiCard({ icon: 'coins', label: '초기투자 합계', value: money(sum('initial')), unit: '', sub: '보증금 + 권리금' }),
   ].join('');
 
@@ -553,14 +561,19 @@ function renderStats() {
   const avgArea = areas.length ? Math.round(areas.reduce((s, i) => s + num(i.area), 0) / areas.length) : 0;
   const perP = alive.filter((i) => i.rentPerPyeong > 0);
   const avgPer = perP.length ? Math.round(perP.reduce((s, i) => s + i.rentPerPyeong, 0) / perP.length) : 0;
-  const totalDeposit = alive.reduce((s, i) => s + num(i.deposit), 0);
-  const totalRent = alive.reduce((s, i) => s + num(i.rent), 0);
+  /* 값이 있는 곳만 나눈다. 0(미입력)까지 세면 평균이 실제보다 낮아진다. */
+  const depos = alive.filter((i) => num(i.deposit) > 0);
+  const avgDeposit = depos.length ? Math.round(depos.reduce((s, i) => s + num(i.deposit), 0) / depos.length) : 0;
+  const rents = alive.filter((i) => num(i.rent) > 0);
+  const avgRent = rents.length ? Math.round(rents.reduce((s, i) => s + num(i.rent), 0) / rents.length) : 0;
 
   $('#statsKpiRow').innerHTML = [
     kpiCard({ accent: true, icon: 'landmark', label: '지역', value: uniq('region').length, unit: '개', sub: `후보지 ${alive.length}곳` }),
     kpiCard({ icon: 'ruler', label: '평균 전용면적', value: avgArea, unit: '평', sub: avgPer ? `평당 임차료 ${moneyWon(avgPer)}` : '면적 미입력' }),
-    kpiCard({ icon: 'piggy-bank', label: '보증금 합계', value: money(totalDeposit), unit: '', sub: '고정 임차료 기준' }),
-    kpiCard({ icon: 'wallet', label: '월 임차료 합계', value: money(totalRent), unit: '', sub: '수수료 방식 미포함' }),
+    kpiCard({ icon: 'piggy-bank', label: '보증금 평균', value: money(avgDeposit), unit: '',
+              sub: `입력된 ${depos.length}곳 기준` }),
+    kpiCard({ icon: 'wallet', label: '평균 월 임차료', value: money(avgRent), unit: '',
+              sub: `고정 임차료 ${rents.length}곳 기준 · 수수료 방식 제외` }),
   ].join('');
 
   const font = { family: "'Pretendard', sans-serif", size: 12 };
