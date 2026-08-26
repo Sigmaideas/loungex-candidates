@@ -26,7 +26,6 @@ const state = {
   search: '',
   statusFilter: '',
   regionFilter: '',
-  kindFilter: '',
   availableFilter: '',
   sortKey: 'name',
   sortDir: 'asc',
@@ -156,7 +155,6 @@ function filtered() {
   return state.items.filter((it) => {
     if (state.statusFilter && it.status !== state.statusFilter) return false;
     if (state.regionFilter && (it.region || '') !== state.regionFilter) return false;
-    if (state.kindFilter && (it.kind || '') !== state.kindFilter) return false;
     if (state.availableFilter && (it.availableAt || '') !== state.availableFilter) return false;
     if (!q) return true;
     return [it.name, it.address, it.region, it.memo, it.floor, it.availableAt]
@@ -240,7 +238,6 @@ function fillSelect(sel, values, cur, allLabel) {
 
 function renderFilters() {
   fillSelect($('#regionFilter'), uniq('region'), state.regionFilter, '전체 지역');
-  fillSelect($('#kindFilter'), uniq('kind'), state.kindFilter, '전체 구분');
   fillSelect($('#availableFilter'), uniq('availableAt'), state.availableFilter, '전체 가능시기');
   $('#regionList').innerHTML = uniq('region').map((r) => `<option value="${esc(r)}"></option>`).join('');
 }
@@ -658,7 +655,7 @@ async function init() {
     state.statusFilter = chip.dataset.status;
     renderChips(); renderTable(); icons();
   });
-  [['#regionFilter', 'regionFilter'], ['#kindFilter', 'kindFilter'], ['#availableFilter', 'availableFilter']]
+  [['#regionFilter', 'regionFilter'], ['#availableFilter', 'availableFilter']]
     .forEach(([sel, key]) => {
       $(sel).addEventListener('change', (e) => { state[key] = e.target.value; renderTable(); icons(); });
     });
