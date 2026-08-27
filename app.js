@@ -39,8 +39,8 @@ const state = {
   statusFilter: '',
   regionFilter: '',
   typeFilter: '',
-  sortKey: 'name',
-  sortDir: 'asc',
+  sortKey: 'createdAt',   // 기본은 최근 등록순
+  sortDir: 'desc',
   editingId: null,
   savedAt: null,
   dirty: false,   // 저장 안 한 변경이 있는지
@@ -139,13 +139,28 @@ function load() {
   }
 }
 
+/* 투자금이 보증금+권리금 자동 계산이던 시절 저장된 값을 한 번만 비운다.
+   아무도 직접 넣은 적 없는 숫자라 그대로 두면 실제 투자금인 척 남는다. */
+const INITIAL_RESET_KEY = 'loungex.candidates.initialReset.v1';
+function resetLegacyInitial() {
+  if (localStorage.getItem(INITIAL_RESET_KEY)) return;
+  const now = new Date().toISOString();
+  const hit = state.items.filter((i) => num(i.initial));
+  localStorage.setItem(INITIAL_RESET_KEY, now);
+  if (!hit.length) return;
+  hit.forEach((i) => { i.initial = 0; i.updatedAt = now; });
+  save();
+  render();
+  toast(`투자금 ${hit.length}곳을 비웠습니다 · [저장하기] 를 눌러 반영하세요`);
+}
+
 function normalize(o) {
   const item = Object.assign(
     {
       id: uid(), name: '', type: '', channel: '',
       address: '', naverUrl: '', placeId: '', region: '',
       status: 'review', floor: '', area: 0,
-      deposit: 0, rent: 0, feeRate: 0, maintenance: 0, premium: 0,
+      deposit: 0, rent: 0, feeRate: 0, maintenance: 0, premium: 0, initial: 0,
       availableAt: '', memo: '', lat: null, lng: null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     },
@@ -157,10 +172,10 @@ function normalize(o) {
   // 제안완료·드랍·기타 폐지. 이미 저장된 값은 옮겨 받는다
   if (item.status === 'proposed') item.status = 'progress';
   if (!STATUS_MAP[item.status]) item.status = 'review';   // drop · etc · 미상 → 후보지
+  item.initial = num(item.initial);   // 보증금·권리금과 별개로 직접 넣는 값
   // 정렬·표시에 쓰는 파생값
   item.lat = Number.isFinite(parseFloat(item.lat)) ? parseFloat(item.lat) : null;
   item.lng = Number.isFinite(parseFloat(item.lng)) ? parseFloat(item.lng) : null;
-  item.initial = num(item.deposit) + num(item.premium);
   item.rentPerPyeong = num(item.area) && num(item.rent) ? num(item.rent) / num(item.area) : 0;
   return item;
 }
@@ -620,8 +635,8 @@ function setView(v) {
 
 /* ===== 입력 폼 ===== */
 const FORM_FIELDS = ['name', 'type', 'channel', 'status', 'region', 'floor', 'address', 'naverUrl',
-  'area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium', 'availableAt', 'memo'];
-const NUM_FIELDS = ['area', 'deposit', 'rent', 'feeRate', 'maintenance', 'premium'];
+  'area', 'deposit', 'premium', 'initial', 'rent', 'feeRate', 'maintenance', 'availableAt', 'memo'];
+const NUM_FIELDS = ['area', 'deposit', 'premium', 'initial', 'rent', 'feeRate', 'maintenance'];
 
 function openForm(id) {
   const form = $('#candidateForm');
@@ -923,6 +938,7 @@ async function init() {
   } else if (!state.items.length) {
     await loadSeed(true);   // 공유 서버가 설정 안 된 로컬 모드
   }
+  resetLegacyInitial();     // 서버·로컬 어느 쪽에서 받아왔든 한 번은 거치게 둔다
   renderSyncBadge();
 }
 
