@@ -310,9 +310,9 @@ function renderTable() {
         <td>${esc(it.floor || '-')}</td>
         <td class="num">${num(it.area) ? num(it.area).toLocaleString() + '평' : '-'}</td>
         <td class="num">${money(it.deposit)}</td>
-        <td class="num">${esc(rentLabel(it))}</td>
         <td class="num">${money(it.premium)}</td>
         <td class="num strong">${money(it.initial)}</td>
+        <td class="num">${esc(rentLabel(it))}</td>
         <td><span class="tag ${st.cls}">${esc(st.label)}</span></td>
         <td>${esc(it.availableAt || '-')}</td>
         <td>
@@ -734,7 +734,7 @@ function openDetail(id) {
       ${cell('수수료율', num(it.feeRate) ? num(it.feeRate) + '%' : '-')}
       ${cell('건물 관리비', moneyWon(it.maintenance))}
       ${cell('권리금', moneyWon(it.premium))}
-      ${cell('초기투자', `<b>${moneyWon(it.initial)}</b>`)}
+      ${cell('투자금', `<b>${moneyWon(it.initial)}</b>`)}
       ${cell('평당 임차료', it.rentPerPyeong ? moneyWon(Math.round(it.rentPerPyeong)) : '-')}
       ${cell('계약 가능시기', esc(it.availableAt || '-'))}
     </div>
